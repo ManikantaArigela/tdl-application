@@ -50,7 +50,7 @@ export function relativeTime(value) {
 }
 
 export function dayKey(value) {
-  const date = new Date(value);
+  const date = toDate(value);
   date.setHours(0, 0, 0, 0);
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');

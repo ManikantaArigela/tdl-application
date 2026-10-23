@@ -20,7 +20,7 @@ async function start() {
 
   const app = createApp({ repos });
   const server = app.listen(port, () => {
-    console.log(`Nova Notes backend running on http://localhost:${port} (MongoDB)`);
+    console.log(`TDL backend running on http://localhost:${port} (MongoDB)`);
   });
 
   let shuttingDown = false;

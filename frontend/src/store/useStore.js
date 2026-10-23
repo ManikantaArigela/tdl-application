@@ -1,34 +1,15 @@
 import { create } from 'zustand';
 import { api } from '../api';
 
-const ACCENT_KEY = 'nova.accent';
-const LEGACY_THEME_KEY = 'nova.theme';
-
-function readStored(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function storePreference(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* preferences are best-effort */
-  }
-}
-
-// The app ships with a single light theme; clear any preference left behind by
-// the old light/dark switcher so it cannot resurface later.
+// The app ships with a single light theme and a single brand color. Clear any
+// preference left behind by the old theme/accent switchers so it cannot
+// resurface later.
 try {
-  localStorage.removeItem(LEGACY_THEME_KEY);
+  localStorage.removeItem('nova.theme');
+  localStorage.removeItem('nova.accent');
 } catch {
   /* storage unavailable */
 }
-
-const initialAccent = readStored(ACCENT_KEY) || 'aurora';
 
 export const useStore = create((set, get) => ({
   // ---- Data ----
@@ -42,7 +23,6 @@ export const useStore = create((set, get) => ({
   // ---- UI state ----
   activeView: 'notes',
   selectedNoteId: null,
-  accent: initialAccent,
   searchQuery: '',
   commandPaletteOpen: false,
   quickCaptureOpen: false,
@@ -162,6 +142,20 @@ export const useStore = create((set, get) => ({
     }
   },
 
+  updateTodo: async (id, updates) => {
+    try {
+      const updated = await api.updateTodo(id, updates);
+      set((state) => ({
+        todos: state.todos.map((t) => (t.id === id ? updated : t)),
+        syncError: null,
+      }));
+      return updated;
+    } catch (err) {
+      set({ syncError: err.message });
+      return null;
+    }
+  },
+
   deleteTodo: async (id) => {
     try {
       await api.deleteTodo(id);
@@ -186,10 +180,6 @@ export const useStore = create((set, get) => ({
 
   // ---- UI ----
   setActiveView: (view) => set({ activeView: view, selectedNoteId: null }),
-  setAccent: (accent) => {
-    storePreference(ACCENT_KEY, accent);
-    set({ accent });
-  },
   setSearchQuery: (q) => set({ searchQuery: q }),
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
@@ -283,7 +273,7 @@ export const useStore = create((set, get) => ({
   // ---- Export ----
   exportMarkdown: () => {
     const { notes, todos } = get();
-    const lines = ['# Nova Notes export', '', `Generated: ${new Date().toISOString()}`, ''];
+    const lines = ['# TDL export', '', `Generated: ${new Date().toISOString()}`, ''];
     lines.push('## Notes', '');
     notes.forEach((n) => {
       lines.push(`### ${n.title || 'Untitled'}`);

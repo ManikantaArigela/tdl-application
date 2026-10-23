@@ -157,7 +157,7 @@ export default function InsightsPanel() {
 
         <div className="border-t border-line px-5 py-3">
           <p className="text-[11px] leading-relaxed text-faint">
-            Generated locally. Nova sends nothing to an external AI service.
+            Generated locally. TDL sends nothing to an external AI service.
           </p>
         </div>
       </motion.aside>

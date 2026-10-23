@@ -2,7 +2,7 @@
   "name": "nova-notes-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Backend API for Nova Notes - Notes & Todo application",
+  "description": "Backend API for TDL - Notes & Todo application",
   "main": "server.js",
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",

@@ -37,28 +37,6 @@
     --danger: 248 113 113;
   }
 
-  [data-accent='iris'] {
-    --accent: 91 75 214;
-    --accent-strong: 76 61 190;
-    --accent-fg: 255 255 255;
-  }
-  .dark[data-accent='iris'] {
-    --accent: 167 139 250;
-    --accent-strong: 139 108 246;
-    --accent-fg: 18 14 38;
-  }
-
-  [data-accent='ember'] {
-    --accent: 180 83 9;
-    --accent-strong: 154 68 6;
-    --accent-fg: 255 255 255;
-  }
-  .dark[data-accent='ember'] {
-    --accent: 251 191 36;
-    --accent-strong: 245 158 11;
-    --accent-fg: 32 20 3;
-  }
-
   html {
     scroll-behavior: smooth;
   }

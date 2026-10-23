@@ -42,7 +42,7 @@ class ErrorBoundary extends React.Component {
               onClick={() => window.location.reload()}
               className="btn-primary mt-6"
             >
-              Reload Nova
+              Reload TDL
             </button>
           </div>
         </div>
@@ -80,7 +80,6 @@ export default function App() {
   const selectedNoteId = useStore((s) => s.selectedNoteId);
   const notes = useStore((s) => s.notes);
   const loaded = useStore((s) => s.loaded);
-  const accent = useStore((s) => s.accent);
   const syncError = useStore((s) => s.syncError);
   const commandPaletteOpen = useStore((s) => s.commandPaletteOpen);
   const quickCaptureOpen = useStore((s) => s.quickCaptureOpen);
@@ -92,10 +91,6 @@ export default function App() {
   React.useEffect(() => {
     if (!loaded) useStore.getState().init();
   }, [loaded]);
-
-  React.useEffect(() => {
-    document.documentElement.dataset.accent = accent;
-  }, [accent]);
 
   React.useEffect(() => {
     const onKeyDown = (event) => {

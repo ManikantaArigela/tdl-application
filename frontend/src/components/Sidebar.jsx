@@ -84,7 +84,7 @@ export default function Sidebar() {
                 <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" strokeLinecap="round" />
               </svg>
             </span>
-            <span className="font-display text-xl leading-none text-ink">Nova</span>
+            <span className="font-display text-xl leading-none text-ink">TDL</span>
           </div>
           <button
             type="button"

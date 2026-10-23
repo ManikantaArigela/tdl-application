@@ -1,8 +1,8 @@
-# Nova Notes
+# TDL
 
 A highly interactive, 3D-animated notes & todo list application with a clean **frontend + backend** architecture.
 
-![Nova Notes preview](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)
+![TDL preview](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-3-06B6D4?style=for-the-badge&logo=tailwindcss)
 ![Express](https://img.shields.io/badge/Express-4-000000?style=for-the-badge&logo=express)
@@ -139,9 +139,9 @@ from the JSON files; never runs without `--yes`).
 | Category | Features |
 |---|---|
 | **Notes** | Create, edit, pin, archive, delete, tag, search (title/content/tags), debounced autosave with save status |
-| **Todos** | Add, complete, delete, drag-to-reorder, keyboard reorder, priority levels, due dates with overdue state, all/open/done filters, clear completed |
-| **Design** | Editorial paper/ink theme, Newsreader + Inter + JetBrains Mono, three accent palettes, semantic CSS-variable tokens, reduced-motion support |
-| **UI / 3D** | Optional 3D tilt on note cards (fine pointers only), lazy-loaded ambient Three.js starfield, Framer Motion with global reduced-motion policy |
+| **Todos** | Card-based task board with priority rails, due dates with overdue state, drag onto completed/carried-over boxes, inline carry action, keyboard reorder, clear completed |
+| **Design** | Editorial paper/ink theme, Newsreader + Inter + JetBrains Mono, single brand palette, semantic CSS-variable tokens, reduced-motion support |
+| **UI / 3D** | Animated note cards (tilt, cursor spotlight, sheen, spring entrance), liquid completion bag, lazy-loaded ambient Three.js starfield, Framer Motion with global reduced-motion policy |
 | **Interactions** | Command palette (`Cmd+K` / `Ctrl+K`), quick capture (`Cmd+J` / `Ctrl+J`), appearance menu, responsive navigation drawer, skip link, focus states |
 | **Insights** | Weekly review and focus list computed locally from your data — no external AI service is called |
 | **Analytics** | Completion rate, streak, notes edited this week, seven-day completion chart from real `completedAt` timestamps |
@@ -192,9 +192,9 @@ All failures return `{ "error": "..." }` with `400` (validation), `404` (missing
 
 ## Customization
 
-- **Design tokens:** Light/dark surfaces, text, borders, and accent colors live as CSS variables in `frontend/src/index.css`; Tailwind maps them in `tailwind.config.js`.
+- **Design tokens:** Surfaces, text, borders, and the brand color live as CSS variables in `frontend/src/index.css`; Tailwind maps them in `tailwind.config.js`.
 - **Theme:** The app uses a single light theme; the former light/dark switcher has been removed and any stored `nova.theme` preference is cleared on load.
-- **Accent palettes:** Verdigris (default), Iris, and Ember are selectable from the header appearance menu and persist in `localStorage` (`nova.accent`). Add another palette by defining `[data-accent='your-name']` variables in `index.css`.
+- **Brand color:** A single fixed teal palette. The former accent picker, its command, and its `localStorage` preference (`nova.accent`) have been removed.
 - **API base URL:** The client uses the relative `/api` path. Vite proxies it to `http://localhost:5001` in development (`frontend/vite.config.js`); in production, serve `dist/` behind a proxy that forwards `/api` to the backend.
 - **Backend port and database:** Set `PORT` and `MONGODB_URI` in `backend/.env`.
 

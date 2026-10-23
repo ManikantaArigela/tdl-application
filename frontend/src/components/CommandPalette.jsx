@@ -15,19 +15,15 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
-const ACCENT_ORDER = ['aurora', 'iris', 'ember'];
-
 export default function CommandPalette() {
   const addNote = useStore((s) => s.addNote);
   const addTodo = useStore((s) => s.addTodo);
   const selectNote = useStore((s) => s.selectNote);
   const setActiveView = useStore((s) => s.setActiveView);
   const setCommandPaletteOpen = useStore((s) => s.setCommandPaletteOpen);
-  const setAccent = useStore((s) => s.setAccent);
   const setExportOpen = useStore((s) => s.setExportOpen);
   const toggleAIPanel = useStore((s) => s.toggleAIPanel);
   const openQuickCapture = useStore((s) => s.openQuickCapture);
-  const accent = useStore((s) => s.accent);
 
   const [query, setQuery] = React.useState('');
   const [activeIndex, setActiveIndex] = React.useState(0);
@@ -70,13 +66,6 @@ export default function CommandPalette() {
     { id: 'go-archive', label: 'Go to Archive', hint: 'Archived notes', icon: Archive, run: go('archive') },
     { id: 'go-analytics', label: 'Go to Analytics', hint: 'Weekly progress', icon: BarChart3, run: go('analytics') },
     { id: 'insights', label: 'Open insights', hint: 'Review your notes and tasks', icon: Sparkles, run: () => toggleAIPanel() },
-    {
-      id: 'accent',
-      label: 'Cycle accent color',
-      hint: 'Verdigris, iris, ember',
-      icon: Sparkles,
-      run: () => setAccent(ACCENT_ORDER[(ACCENT_ORDER.indexOf(accent) + 1) % ACCENT_ORDER.length]),
-    },
     { id: 'export', label: 'Export as Markdown', hint: 'Download notes and todos', icon: Download, run: () => setExportOpen(true) },
   ];
 
