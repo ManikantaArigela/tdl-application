@@ -80,7 +80,6 @@ export default function App() {
   const selectedNoteId = useStore((s) => s.selectedNoteId);
   const notes = useStore((s) => s.notes);
   const loaded = useStore((s) => s.loaded);
-  const theme = useStore((s) => s.theme);
   const accent = useStore((s) => s.accent);
   const syncError = useStore((s) => s.syncError);
   const commandPaletteOpen = useStore((s) => s.commandPaletteOpen);
@@ -95,10 +94,8 @@ export default function App() {
   }, [loaded]);
 
   React.useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle('dark', theme === 'dark');
-    root.dataset.accent = accent;
-  }, [theme, accent]);
+    document.documentElement.dataset.accent = accent;
+  }, [accent]);
 
   React.useEffect(() => {
     const onKeyDown = (event) => {

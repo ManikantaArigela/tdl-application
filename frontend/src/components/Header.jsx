@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Moon, Palette, Search, Sparkles, Sun, X } from 'lucide-react';
+import { Menu, Palette, Search, Sparkles, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 const ACCENTS = [
@@ -11,8 +11,6 @@ const ACCENTS = [
 export default function Header() {
   const searchQuery = useStore((s) => s.searchQuery);
   const setSearchQuery = useStore((s) => s.setSearchQuery);
-  const theme = useStore((s) => s.theme);
-  const setTheme = useStore((s) => s.setTheme);
   const accent = useStore((s) => s.accent);
   const setAccent = useStore((s) => s.setAccent);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
@@ -93,19 +91,6 @@ export default function Header() {
           <Sparkles className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
 
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-        >
-          {theme === 'dark' ? (
-            <Sun className="h-[18px] w-[18px]" aria-hidden="true" />
-          ) : (
-            <Moon className="h-[18px] w-[18px]" aria-hidden="true" />
-          )}
-        </button>
-
         <div className="relative" ref={appearanceRef}>
           <button
             type="button"
@@ -124,29 +109,7 @@ export default function Header() {
               aria-label="Appearance settings"
               className="panel-raised absolute right-0 top-11 w-64 p-4"
             >
-              <p className="text-xs font-medium text-muted">Theme</p>
-              <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Theme">
-                {[
-                  { id: 'light', label: 'Light' },
-                  { id: 'dark', label: 'Dark' },
-                ].map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setTheme(option.id)}
-                    aria-pressed={theme === option.id}
-                    className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      theme === option.id
-                        ? 'border-accent bg-accent/10 text-ink'
-                        : 'border-line text-muted hover:bg-raised'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              <p className="mt-4 text-xs font-medium text-muted">Accent</p>
+              <p className="text-xs font-medium text-muted">Accent</p>
               <div className="mt-2 flex gap-2" role="group" aria-label="Accent color">
                 {ACCENTS.map((option) => (
                   <button

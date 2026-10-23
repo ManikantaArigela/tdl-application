@@ -6,79 +6,90 @@ A highly interactive, 3D-animated notes & todo list application with a clean **f
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-3-06B6D4?style=for-the-badge&logo=tailwindcss)
 ![Express](https://img.shields.io/badge/Express-4-000000?style=for-the-badge&logo=express)
+![MongoDB](https://img.shields.io/badge/MongoDB-8-47A248?style=for-the-badge&logo=mongodb)
 ![Zustand](https://img.shields.io/badge/Zustand-4-FFCC00?style=for-the-badge)
 
 ---
 
-## 📁 Folder Structure
+## Folder Structure
 
 ```
 nova-notes/
 ├── README.md
 ├── .env.example
-├── backend/                  # Express API server
+├── backend/                     # Express API + MongoDB
 │   ├── package.json
-│   ├── server.js             # Entry point (runs on :5001)
+│   ├── server.js                # Entry point (boots DB, runs on :5001)
+│   ├── app.js                   # Express wiring + routes (storage-agnostic)
+│   ├── db.js                    # Mongoose connection, ping, shutdown
 │   ├── .env.example
-│   └── data/                 # JSON file database (notes.json, todos.json)
-│       ├── notes.json
-│       └── todos.json
-└── frontend/                 # React + Vite SPA (runs on :5173)
+│   ├── lib/
+│   │   ├── sanitize.js          # Input clamping/coercion shared with the importer
+│   │   ├── dto.js               # The only place storage types become API types
+│   │   └── errors.js            # Mongo/Express error → status mapping
+│   ├── models/
+│   │   ├── note.js
+│   │   └── todo.js
+│   ├── repositories/
+│   │   ├── notes.repo.js
+│   │   ├── todos.repo.js
+│   │   └── index.js
+│   ├── scripts/
+│   │   └── import-json.js       # Legacy JSON → MongoDB importer
+│   ├── test/                    # node:test suites
+│   └── test-utils/mongo.js      # mongodb-memory-server lifecycle
+└── frontend/                    # React + Vite SPA (runs on :5173)
     ├── package.json
     ├── vite.config.js
     ├── tailwind.config.js
     ├── index.html
-    ├── src/
-    │   ├── main.jsx
-    │   ├── App.jsx
-    │   ├── index.css
-    │   ├── api/
-    │   │   └── index.js          # API client (fetch wrapper)
-    │   ├── store/
-    │   │   └── useStore.js       # Zustand state + API sync
-    │   ├── components/
-    │   │   ├── AmbientBackground.jsx   # Lazy-loaded Three.js starfield
-    │   │   ├── CommandPalette.jsx      # Cmd+K palette
-    │   │   ├── ExportDialog.jsx        # Markdown export
-    │   │   ├── Header.jsx              # Search, theme + accent controls
-    │   │   ├── InsightsPanel.jsx       # Local weekly review / focus list
-    │   │   ├── NoteEditor.jsx
-    │   │   ├── QuickCapture.jsx
-    │   │   ├── Sidebar.jsx
-    │   │   ├── TiltNoteCard.jsx        # 3D mouse-tilt cards
-    │   │   └── TodoList.jsx            # Drag + keyboard reorder
-    │   ├── lib/
-    │   │   └── format.js               # Date, relative time, plurals
-    │   └── views/
-    │       ├── AnalyticsView.jsx
-    │       ├── NotesView.jsx
-    │       └── TodosView.jsx
-    └── dist/                   # Production build output
+    └── src/
+        ├── main.jsx
+        ├── App.jsx
+        ├── index.css
+        ├── api/index.js         # API client (fetch wrapper)
+        ├── store/useStore.js    # Zustand state + API sync
+        ├── components/          # AmbientBackground, CommandPalette, ExportDialog,
+        │                        # Header, InsightsPanel, NoteEditor, QuickCapture,
+        │                        # Sidebar, TiltNoteCard, TodoList
+        ├── lib/format.js
+        └── views/               # AnalyticsView, NotesView, TodosView
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- Node.js 20+ (the backend uses `--env-file-if-exists`)
+- Node.js 20+
 - npm
+- MongoDB 6+ running locally, **or** a MongoDB Atlas connection string
 
 ### 1. Start the backend
 
 ```bash
 cd backend
 npm install
-cp .env.example .env   # optional, edit PORT if needed
-npm start             # http://localhost:5001
+cp .env.example .env     # set MONGODB_URI if not using localhost
+npm start                # http://localhost:5001
 ```
+
+`backend/.env`:
+
+```ini
+PORT=5001
+MONGODB_URI=mongodb://127.0.0.1:27017/nova_notes
+```
+
+The server refuses to start if MongoDB is unreachable and prints the masked URI, so a misconfigured
+connection fails loudly instead of serving empty data.
 
 ### 2. Start the frontend (new terminal)
 
 ```bash
 cd frontend
 npm install
-npm run dev            # http://localhost:5173
+npm run dev              # http://localhost:5173
 ```
 
 The frontend proxies `/api` requests to `http://localhost:5001` automatically via Vite.
@@ -86,28 +97,44 @@ The frontend proxies `/api` requests to `http://localhost:5001` automatically vi
 ### 3. Production build
 
 ```bash
-# Backend
 cd backend
 npm start
 
-# Frontend
 cd frontend
-npm run build          # outputs to frontend/dist/
-npm run preview        # serve production build locally
+npm run build            # outputs to frontend/dist/
+npm run preview          # serve production build locally
 ```
 
 ### 4. API tests
 
 ```bash
 cd backend
-npm test               # node:test, no extra dependencies
+npm test
 ```
 
-The suite runs against a temporary data directory, so it never touches `backend/data`.
+The suite boots an in-memory MongoDB (`mongodb-memory-server`), so it never touches your real
+database and needs no running server. The first run downloads the mongod binary once.
 
 ---
 
-## ✨ Features
+## Migrating legacy JSON data
+
+Older versions stored data in `backend/data/notes.json` and `todos.json`. The importer is
+idempotent, validates every record through the same sanitizers as the API, preserves ids and
+timestamps, derives todo order from the array position, and backs the files up before writing.
+
+```bash
+cd backend
+npm run import -- --dry-run     # validate only, no connection required
+npm run import                  # upsert into MongoDB
+```
+
+Flags: `--data-dir DIR`, `--batch N`, `--verbose`, `--replace --yes` (deletes records absent
+from the JSON files; never runs without `--yes`).
+
+---
+
+## Features
 
 | Category | Features |
 |---|---|
@@ -118,19 +145,19 @@ The suite runs against a temporary data directory, so it never touches `backend/
 | **Interactions** | Command palette (`Cmd+K` / `Ctrl+K`), quick capture (`Cmd+J` / `Ctrl+J`), appearance menu, responsive navigation drawer, skip link, focus states |
 | **Insights** | Weekly review and focus list computed locally from your data — no external AI service is called |
 | **Analytics** | Completion rate, streak, notes edited this week, seven-day completion chart from real `completedAt` timestamps |
-| **Data** | REST API (Express) + JSON file database — no external database server required |
+| **Data** | REST API (Express) + MongoDB via Mongoose — atomic per-document updates, indexed list/reorder queries |
 
 ---
 
-## 🧠 Tech Stack
+## Tech Stack
 
 - **Frontend:** React 18, Vite 5, Tailwind CSS, Framer Motion, Zustand, Lucide React, Three.js
-- **Backend:** Express 4, CORS, Node.js file-system JSON store
+- **Backend:** Express 4, Mongoose 8, MongoDB
 - **State:** Zustand with API-synchronized actions
 
 ---
 
-## 🔌 API Reference
+## API Reference
 
 Base URL: `http://localhost:5001`
 
@@ -149,35 +176,45 @@ Base URL: `http://localhost:5001`
 | `POST` | `/api/todos` | `{ text, priority, dueDate, completed }` | Create todo |
 | `PUT` | `/api/todos/:id` | Partial todo fields | Update todo |
 | `DELETE` | `/api/todos/:id` | — | Delete todo |
-| `PUT` | `/api/todos/reorder` | `{ todos: [...] }` | Bulk reorder todos |
+| `PUT` | `/api/todos/reorder` | `{ todos: [...] }` | Bulk reorder (ids or `{ id }` objects) |
 
 ### Health
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/health` | Server health check |
+| `GET` | `/api/health` | `200` when MongoDB answers a ping, `503` when it does not |
+
+### Error format
+
+All failures return `{ "error": "..." }` with `400` (validation), `404` (missing record),
+`409` (duplicate id), `503` (database unavailable) or `500` (unexpected).
 
 ---
 
-## 🛠 Customization
+## Customization
 
 - **Design tokens:** Light/dark surfaces, text, borders, and accent colors live as CSS variables in `frontend/src/index.css`; Tailwind maps them in `tailwind.config.js`.
+- **Theme:** The app uses a single light theme; the former light/dark switcher has been removed and any stored `nova.theme` preference is cleared on load.
 - **Accent palettes:** Verdigris (default), Iris, and Ember are selectable from the header appearance menu and persist in `localStorage` (`nova.accent`). Add another palette by defining `[data-accent='your-name']` variables in `index.css`.
-- **Theme:** Light/dark is chosen in the appearance menu and persisted under `nova.theme`; the pre-paint script in `index.html` prevents a flash of the wrong theme.
 - **API base URL:** The client uses the relative `/api` path. Vite proxies it to `http://localhost:5001` in development (`frontend/vite.config.js`); in production, serve `dist/` behind a proxy that forwards `/api` to the backend.
-- **Backend port and data directory:** Set `PORT` and `DATA_DIR` in `backend/.env` (defaults: `5001`, `backend/data`).
+- **Backend port and database:** Set `PORT` and `MONGODB_URI` in `backend/.env`.
 
 ---
 
-## 📄 License
+## Data model notes
+
+- `_id` is the same string id the API exposes (`n_<uuid>` / `t_<uuid>`), so ids are stable across the
+  JSON → MongoDB move and imports are pure upserts.
+- Timestamps are stored as `Date` and serialized back to epoch milliseconds in `lib/dto.js`, which is
+  the only mapping layer. Mongoose documents are never sent to clients.
+- Todo order is an explicit sparse `order` field. New todos take `min(order) - 1` (one insert, no
+  shifting), and reorder assigns dense positions with a single `bulkWrite`. Reorder is not a
+  cross-document transaction; on a replica set the server could wrap it, and clients always receive
+  the canonical list afterwards so they converge.
+- `dueDate` is stored as a string to keep the existing API contract (`string | null`). Normalizing it
+  to a `Date` is a follow-up if server-side due-date queries are needed.
+
+---
+
+## License
 
 MIT
-
----
-
-## 🤝 Contributing
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request

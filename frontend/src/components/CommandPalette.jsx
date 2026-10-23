@@ -8,7 +8,6 @@ import {
   Command,
   Download,
   LayoutGrid,
-  Moon,
   Plus,
   Search,
   Sparkles,
@@ -24,7 +23,6 @@ export default function CommandPalette() {
   const selectNote = useStore((s) => s.selectNote);
   const setActiveView = useStore((s) => s.setActiveView);
   const setCommandPaletteOpen = useStore((s) => s.setCommandPaletteOpen);
-  const toggleTheme = useStore((s) => s.toggleTheme);
   const setAccent = useStore((s) => s.setAccent);
   const setExportOpen = useStore((s) => s.setExportOpen);
   const toggleAIPanel = useStore((s) => s.toggleAIPanel);
@@ -72,13 +70,6 @@ export default function CommandPalette() {
     { id: 'go-archive', label: 'Go to Archive', hint: 'Archived notes', icon: Archive, run: go('archive') },
     { id: 'go-analytics', label: 'Go to Analytics', hint: 'Weekly progress', icon: BarChart3, run: go('analytics') },
     { id: 'insights', label: 'Open insights', hint: 'Review your notes and tasks', icon: Sparkles, run: () => toggleAIPanel() },
-    {
-      id: 'theme',
-      label: 'Toggle theme',
-      hint: 'Switch between light and dark',
-      icon: Moon,
-      run: () => toggleTheme(),
-    },
     {
       id: 'accent',
       label: 'Cycle accent color',

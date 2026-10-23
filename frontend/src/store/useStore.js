@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { api } from '../api';
 
-const THEME_KEY = 'nova.theme';
 const ACCENT_KEY = 'nova.accent';
+const LEGACY_THEME_KEY = 'nova.theme';
 
 function readStored(key) {
   try {
@@ -20,15 +20,14 @@ function storePreference(key, value) {
   }
 }
 
-const systemPrefersDark = () => {
-  try {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  } catch {
-    return true;
-  }
-};
+// The app ships with a single light theme; clear any preference left behind by
+// the old light/dark switcher so it cannot resurface later.
+try {
+  localStorage.removeItem(LEGACY_THEME_KEY);
+} catch {
+  /* storage unavailable */
+}
 
-const initialTheme = readStored(THEME_KEY) || (systemPrefersDark() ? 'dark' : 'light');
 const initialAccent = readStored(ACCENT_KEY) || 'aurora';
 
 export const useStore = create((set, get) => ({
@@ -43,7 +42,6 @@ export const useStore = create((set, get) => ({
   // ---- UI state ----
   activeView: 'notes',
   selectedNoteId: null,
-  theme: initialTheme,
   accent: initialAccent,
   searchQuery: '',
   commandPaletteOpen: false,
@@ -188,11 +186,6 @@ export const useStore = create((set, get) => ({
 
   // ---- UI ----
   setActiveView: (view) => set({ activeView: view, selectedNoteId: null }),
-  setTheme: (theme) => {
-    storePreference(THEME_KEY, theme);
-    set({ theme });
-  },
-  toggleTheme: () => get().setTheme(get().theme === 'dark' ? 'light' : 'dark'),
   setAccent: (accent) => {
     storePreference(ACCENT_KEY, accent);
     set({ accent });

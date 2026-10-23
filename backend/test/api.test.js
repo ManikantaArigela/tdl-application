@@ -1,28 +1,36 @@
-const { test, before, after } = require('node:test');
+const { test, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs/promises');
-const os = require('node:os');
-const path = require('node:path');
 
-const { createApp } = require('../server');
+const { createApp } = require('../app');
+const repos = require('../repositories');
+const mongo = require('../test-utils/mongo');
 
 let server;
 let baseUrl;
-let dataDir;
 
-before(async () => {
-  dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nova-api-test-'));
-  const app = createApp({ dataDir });
-  await new Promise((resolve) => {
-    server = app.listen(0, '127.0.0.1', resolve);
-  });
-  const { port } = server.address();
-  baseUrl = `http://127.0.0.1:${port}`;
-});
+before(
+  async () => {
+    await mongo.start();
+    const app = createApp({ repos });
+    await new Promise((resolve) => {
+      server = app.listen(0, '127.0.0.1', resolve);
+    });
+    const { port } = server.address();
+    baseUrl = `http://127.0.0.1:${port}`;
+  },
+  { timeout: 180_000 }
+);
 
-after(async () => {
-  if (server) await new Promise((resolve) => server.close(resolve));
-  if (dataDir) await fs.rm(dataDir, { recursive: true, force: true });
+after(
+  async () => {
+    if (server) await new Promise((resolve) => server.close(resolve));
+    await mongo.stop();
+  },
+  { timeout: 60_000 }
+);
+
+beforeEach(async () => {
+  await mongo.reset();
 });
 
 async function request(pathname, options = {}) {
@@ -36,11 +44,12 @@ async function request(pathname, options = {}) {
 
 const json = (payload) => ({ body: JSON.stringify(payload) });
 
-test('health reports the JSON storage backend', async () => {
+test('health reports the MongoDB storage backend', async () => {
   const { response, body } = await request('/api/health');
   assert.equal(response.status, 200);
   assert.equal(body.status, 'ok');
-  assert.equal(body.storage, 'json');
+  assert.equal(body.storage, 'mongodb');
+  assert.ok(body.timestamp);
 });
 
 test('notes support create, read, update, and delete', async () => {
@@ -52,6 +61,8 @@ test('notes support create, read, update, and delete', async () => {
   assert.match(created.body.id, /^n_/);
   assert.deepEqual(created.body.tags, ['work', 'ideas']);
   assert.equal(created.body.archived, false);
+  assert.equal(typeof created.body.createdAt, 'number');
+  assert.equal(typeof created.body.updatedAt, 'number');
 
   const list = await request('/api/notes');
   assert.equal(list.body.length, 1);
@@ -65,9 +76,11 @@ test('notes support create, read, update, and delete', async () => {
   assert.equal(updated.body.pinned, true);
   assert.equal(updated.body.title, 'First note');
   assert.ok(updated.body.updatedAt >= created.body.updatedAt);
+  assert.equal(updated.body.createdAt, created.body.createdAt);
 
   const removed = await request(`/api/notes/${created.body.id}`, { method: 'DELETE' });
   assert.equal(removed.response.status, 200);
+  assert.deepEqual(removed.body, { success: true });
 
   const missing = await request(`/api/notes/${created.body.id}`, { method: 'DELETE' });
   assert.equal(missing.response.status, 404);
@@ -86,6 +99,7 @@ test('todos require text and track completion timestamps', async () => {
   assert.match(created.body.id, /^t_/);
   assert.equal(created.body.completed, false);
   assert.equal(created.body.completedAt, null);
+  assert.equal(created.body.dueDate, null);
 
   const completed = await request(`/api/todos/${created.body.id}`, {
     method: 'PUT',
@@ -103,13 +117,20 @@ test('todos require text and track completion timestamps', async () => {
   assert.equal(reopened.body.completedAt, null);
 });
 
-test('reorder persists order and never drops unsent todos', async () => {
-  // Start from an empty list so ordering assertions are deterministic.
-  const current = await request('/api/todos');
-  await Promise.all(
-    current.body.map((todo) => request(`/api/todos/${todo.id}`, { method: 'DELETE' }))
-  );
+test('new todos are inserted at the top of the order', async () => {
+  const first = await request('/api/todos', { method: 'POST', ...json({ text: 'First' }) });
+  const second = await request('/api/todos', { method: 'POST', ...json({ text: 'Second' }) });
 
+  const list = await request('/api/todos');
+  assert.deepEqual(
+    list.body.map((todo) => todo.text),
+    ['Second', 'First']
+  );
+  assert.ok(list.body[0].id);
+  assert.notEqual(first.body.id, second.body.id);
+});
+
+test('reorder persists order and never drops unsent todos', async () => {
   const first = await request('/api/todos', { method: 'POST', ...json({ text: 'First' }) });
   const second = await request('/api/todos', { method: 'POST', ...json({ text: 'Second' }) });
 
@@ -133,11 +154,31 @@ test('reorder persists order and never drops unsent todos', async () => {
   assert.equal(partial.body[0].id, second.body.id);
   assert.equal(partial.body[1].id, first.body.id);
 
+  // Order survives a fresh read (it is persisted, not just returned).
+  const list = await request('/api/todos');
+  assert.deepEqual(
+    list.body.map((todo) => todo.id),
+    [second.body.id, first.body.id]
+  );
+
   const bogus = await request('/api/todos/reorder', {
     method: 'PUT',
     ...json({ todos: 'nope' }),
   });
   assert.equal(bogus.response.status, 400);
+});
+
+test('reorder ignores unknown and duplicate ids', async () => {
+  const only = await request('/api/todos', { method: 'POST', ...json({ text: 'Only' }) });
+
+  const result = await request('/api/todos/reorder', {
+    method: 'PUT',
+    ...json({ todos: ['t_missing', { id: only.body.id }, { id: only.body.id }, null] }),
+  });
+
+  assert.equal(result.response.status, 200);
+  assert.equal(result.body.length, 1);
+  assert.equal(result.body[0].id, only.body.id);
 });
 
 test('unknown API routes and unknown ids return JSON 404s', async () => {
@@ -150,6 +191,13 @@ test('unknown API routes and unknown ids return JSON 404s', async () => {
   });
   assert.equal(todo.response.status, 404);
   assert.equal(todo.body.error, 'Todo not found');
+
+  const note = await request('/api/notes/missing', {
+    method: 'PUT',
+    ...json({ title: 'x' }),
+  });
+  assert.equal(note.response.status, 404);
+  assert.equal(note.body.error, 'Note not found');
 });
 
 test('malformed JSON returns a 400 instead of crashing', async () => {
