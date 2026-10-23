@@ -13,6 +13,9 @@ import CommandPalette from './components/CommandPalette';
 import QuickCapture from './components/QuickCapture';
 import InsightsPanel from './components/InsightsPanel';
 import ExportDialog from './components/ExportDialog';
+import ReminderCenter from './components/ReminderCenter';
+import AIPlannerDialog from './components/AIPlannerDialog';
+import AISummaryDialog from './components/AISummaryDialog';
 
 // Three.js is only needed for the ambient canvas, so keep it out of the initial bundle.
 const AmbientBackground = React.lazy(() => import('./components/AmbientBackground'));
@@ -84,6 +87,8 @@ export default function App() {
   const commandPaletteOpen = useStore((s) => s.commandPaletteOpen);
   const quickCaptureOpen = useStore((s) => s.quickCaptureOpen);
   const aiPanelOpen = useStore((s) => s.aiPanelOpen);
+  const aiPlannerOpen = useStore((s) => s.aiPlannerOpen);
+  const aiSummaryOpen = useStore((s) => s.aiSummaryOpen);
   const exportOpen = useStore((s) => s.exportOpen);
 
   const note = selectedNoteId ? notes.find((n) => n.id === selectedNoteId) : null;
@@ -110,7 +115,9 @@ export default function App() {
 
       if (event.key === 'Escape') {
         const state = useStore.getState();
-        if (state.commandPaletteOpen) state.setCommandPaletteOpen(false);
+        if (state.aiPlannerOpen) state.setAIPlannerOpen(false);
+        else if (state.aiSummaryOpen) state.setAISummaryOpen(false);
+        else if (state.commandPaletteOpen) state.setCommandPaletteOpen(false);
         else if (state.quickCaptureOpen) state.toggleQuickCapture();
         else if (state.aiPanelOpen) state.setAIPanelOpen(false);
         else if (state.exportOpen) state.setExportOpen(false);
@@ -224,6 +231,14 @@ export default function App() {
         <AnimatePresence>
           {exportOpen && <ExportDialog key="export" />}
         </AnimatePresence>
+        <AnimatePresence>
+          {aiPlannerOpen && <AIPlannerDialog key="ai-planner" />}
+        </AnimatePresence>
+        <AnimatePresence>
+          {aiSummaryOpen && <AISummaryDialog key="ai-summary" />}
+        </AnimatePresence>
+
+        <ReminderCenter />
         </div>
       </MotionConfig>
     </ErrorBoundary>

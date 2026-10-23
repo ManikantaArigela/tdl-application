@@ -9,9 +9,11 @@ import {
   Download,
   LayoutGrid,
   Plus,
+  ScrollText,
   Search,
   Sparkles,
   Star,
+  Wand2,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
@@ -23,6 +25,8 @@ export default function CommandPalette() {
   const setCommandPaletteOpen = useStore((s) => s.setCommandPaletteOpen);
   const setExportOpen = useStore((s) => s.setExportOpen);
   const toggleAIPanel = useStore((s) => s.toggleAIPanel);
+  const setAIPlannerOpen = useStore((s) => s.setAIPlannerOpen);
+  const setAISummaryOpen = useStore((s) => s.setAISummaryOpen);
   const openQuickCapture = useStore((s) => s.openQuickCapture);
 
   const [query, setQuery] = React.useState('');
@@ -58,6 +62,20 @@ export default function CommandPalette() {
       hint: 'Capture a note or task without leaving the page',
       icon: Sparkles,
       run: () => openQuickCapture('note'),
+    },
+    {
+      id: 'ai-planner',
+      label: 'AI planner',
+      hint: 'Turn a topic or file into notes and tasks',
+      icon: Wand2,
+      run: () => setAIPlannerOpen(true),
+    },
+    {
+      id: 'ai-summary',
+      label: 'Summarize notes',
+      hint: 'Create a study brief from all notes',
+      icon: ScrollText,
+      run: () => setAISummaryOpen(true),
     },
     { id: 'go-notes', label: 'Go to Notes', hint: 'Browse all notes', icon: LayoutGrid, run: go('notes') },
     { id: 'go-todos', label: 'Go to Todos', hint: 'Open the task list', icon: CheckCircle2, run: go('todos') },

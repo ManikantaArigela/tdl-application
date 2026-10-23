@@ -50,11 +50,6 @@ export default {
           '0%': { transform: 'translateX(0)' },
           '100%': { transform: 'translateX(-50%)' },
         },
-        sheen: {
-          '0%': { transform: 'translateX(0) skewX(-12deg)', opacity: '0' },
-          '15%': { opacity: '0.9' },
-          '100%': { transform: 'translateX(420%) skewX(-12deg)', opacity: '0' },
-        },
         bubble: {
           '0%': { transform: 'translateY(0) scale(0.7)', opacity: '0' },
           '15%': { opacity: '0.7' },
@@ -66,7 +61,6 @@ export default {
         shimmer: 'shimmer 1.6s infinite',
         wave: 'wave 7s linear infinite',
         'wave-slow': 'wave 11s linear infinite reverse',
-        sheen: 'sheen 900ms ease-out',
         bubble: 'bubble 4.5s ease-in infinite',
       },
     },

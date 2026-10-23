@@ -1,8 +1,8 @@
 import React from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { CalendarDays, ListChecks, Plus, Sparkles } from 'lucide-react';
+import { CalendarDays, Clock3, ListChecks, Plus, Repeat, Sparkles } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { dayKey, plural } from '../lib/format';
+import { dayKey, dueTimestamp, plural } from '../lib/format';
 import TodoCard, { PRIORITIES } from './TodoCard';
 import CompletionBag from './CompletionBag';
 import CarryOverBox from './CarryOverBox';
@@ -19,6 +19,9 @@ const todayStamp = () => {
   date.setHours(12, 0, 0, 0);
   return date.toISOString();
 };
+
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+const dueValue = (todo) => dueTimestamp(todo) ?? Number.POSITIVE_INFINITY;
 
 /** Extract viewport coordinates from a pointer/mouse/touch event. */
 const pointerPoint = (event) => {
@@ -41,6 +44,9 @@ export default function TodoList({ scope = 'all' }) {
   const [text, setText] = React.useState('');
   const [priority, setPriority] = React.useState('medium');
   const [dueDate, setDueDate] = React.useState('');
+  const [dueTime, setDueTime] = React.useState('');
+  const [repeat, setRepeat] = React.useState('none');
+  const [sort, setSort] = React.useState('priority');
   const [canDrag, setCanDrag] = React.useState(false);
   const [draggingId, setDraggingId] = React.useState(null);
   const [activeZone, setActiveZone] = React.useState(null);
@@ -85,6 +91,26 @@ export default function TodoList({ scope = 'all' }) {
       ? openTodos.filter((todo) => todo.dueDate && dayKey(todo.dueDate) <= today)
       : openTodos;
 
+  // Priority is the default lens; manual keeps the stored order editable.
+  const sortedOpen = (() => {
+    if (sort === 'manual') return visibleOpen;
+    const items = [...visibleOpen];
+    if (sort === 'priority') {
+      items.sort(
+        (a, b) =>
+          (PRIORITY_RANK[a.priority] ?? 1) - (PRIORITY_RANK[b.priority] ?? 1) ||
+          dueValue(a) - dueValue(b)
+      );
+    } else {
+      items.sort(
+        (a, b) =>
+          dueValue(a) - dueValue(b) ||
+          (PRIORITY_RANK[a.priority] ?? 1) - (PRIORITY_RANK[b.priority] ?? 1)
+      );
+    }
+    return items;
+  })();
+
   const zoneAtPoint = (point) => {
     if (!point) return null;
     for (const [zone, element] of Object.entries(dropZones.current)) {
@@ -111,10 +137,14 @@ export default function TodoList({ scope = 'all' }) {
       priority,
       completed: false,
       dueDate: toDueStamp(dueDate),
+      dueTime: dueDate ? dueTime || null : null,
+      repeat,
     });
     if (created) {
       setText('');
       setDueDate('');
+      setDueTime('');
+      setRepeat('none');
       inputRef.current?.focus();
     }
   };
@@ -143,7 +173,7 @@ export default function TodoList({ scope = 'all' }) {
     updateTodo(id, { completed: false, completedAt: null, dueDate: todayStamp() });
   };
 
-  const releaseDueDate = (id) => updateTodo(id, { dueDate: null });
+  const releaseDueDate = (id) => updateTodo(id, { dueDate: null, dueTime: null });
 
   const handleDragStart = (todo) => setDraggingId(todo.id);
 
@@ -179,64 +209,107 @@ export default function TodoList({ scope = 'all' }) {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] 2xl:grid-cols-[minmax(0,1fr)_380px]">
       <div className="min-w-0 space-y-5">
-        <form onSubmit={handleAdd} className="panel-raised p-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <ListChecks
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
+        <form onSubmit={handleAdd} className="panel-raised space-y-2.5 p-3">
+          <div className="relative">
+            <ListChecks
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
+              aria-hidden="true"
+            />
+            <label htmlFor="new-todo" className="sr-only">
+              New task
+            </label>
+            <input
+              id="new-todo"
+              ref={inputRef}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              placeholder="Add a task…"
+              className="input border-transparent bg-transparent py-2.5 pl-9 focus:border-line"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="new-todo-priority" className="sr-only">
+              Priority
+            </label>
+            <select
+              id="new-todo-priority"
+              value={priority}
+              onChange={(event) => setPriority(event.target.value)}
+              className="input w-auto py-1.5 text-xs"
+              title="Priority"
+            >
+              {PRIORITIES.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label} priority
+                </option>
+              ))}
+            </select>
+
+            <div className="relative">
+              <CalendarDays
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint"
                 aria-hidden="true"
               />
-              <label htmlFor="new-todo" className="sr-only">
-                New task
+              <label htmlFor="new-todo-due" className="sr-only">
+                Due date
               </label>
               <input
-                id="new-todo"
-                ref={inputRef}
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                placeholder="Add a task…"
-                className="input border-transparent bg-transparent py-2.5 pl-9 focus:border-line"
+                id="new-todo-due"
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+                className="input w-[9.25rem] py-1.5 pl-8 text-xs text-muted"
+                title="Due date"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <label htmlFor="new-todo-priority" className="sr-only">
-                Priority
+            <div className="relative">
+              <Clock3
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint"
+                aria-hidden="true"
+              />
+              <label htmlFor="new-todo-time" className="sr-only">
+                Due time
+              </label>
+              <input
+                id="new-todo-time"
+                type="time"
+                value={dueTime}
+                onChange={(event) => setDueTime(event.target.value)}
+                className="input w-[6.75rem] py-1.5 pl-8 text-xs text-muted"
+                title="Due time"
+              />
+            </div>
+
+            <div className="relative">
+              <Repeat
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint"
+                aria-hidden="true"
+              />
+              <label htmlFor="new-todo-repeat" className="sr-only">
+                Repeat
               </label>
               <select
-                id="new-todo-priority"
-                value={priority}
-                onChange={(event) => setPriority(event.target.value)}
-                className="input w-auto py-2 text-xs"
+                id="new-todo-repeat"
+                value={repeat}
+                onChange={(event) => setRepeat(event.target.value)}
+                className="input w-auto py-1.5 pl-8 text-xs"
+                title="Repeat"
               >
-                {PRIORITIES.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
+                <option value="none">No repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
               </select>
-
-              <div className="relative">
-                <CalendarDays
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint"
-                  aria-hidden="true"
-                />
-                <label htmlFor="new-todo-due" className="sr-only">
-                  Due date
-                </label>
-                <input
-                  id="new-todo-due"
-                  type="date"
-                  value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
-                  className="input w-[9.5rem] py-2 pl-8 text-xs text-muted"
-                />
-              </div>
-
-              <button type="submit" className="btn-primary shrink-0" disabled={!text.trim()}>
-                <Plus className="h-4 w-4" aria-hidden="true" /> Add
-              </button>
             </div>
+
+            <button
+              type="submit"
+              className="btn-primary ml-auto shrink-0"
+              disabled={!text.trim()}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" /> Add
+            </button>
           </div>
         </form>
 
@@ -252,9 +325,27 @@ export default function TodoList({ scope = 'all' }) {
               {canDrag && (
                 <p className="mt-1 flex items-center gap-1 text-[11px] text-faint">
                   <Sparkles className="h-3 w-3" aria-hidden="true" />
-                  Drag a card onto a box to complete it or carry it over.
+                  {sort === 'manual'
+                    ? 'Drag a card onto a box to complete it or carry it over.'
+                    : `Sorted by ${sort === 'priority' ? 'priority' : 'due date'} — choose Manual to reorder.`}
                 </p>
               )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="todo-sort" className="text-[11px] uppercase tracking-[0.12em] text-faint">
+                Sort
+              </label>
+              <select
+                id="todo-sort"
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+                className="input w-auto py-1.5 text-xs"
+              >
+                <option value="priority">Priority</option>
+                <option value="due">Due date</option>
+                <option value="manual">Manual</option>
+              </select>
             </div>
           </div>
 
@@ -270,13 +361,14 @@ export default function TodoList({ scope = 'all' }) {
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2">
               <AnimatePresence initial={false}>
-                {visibleOpen.map((todo, index) => (
+                {sortedOpen.map((todo, index) => (
                   <TodoCard
                     key={todo.id}
                     todo={todo}
                     index={index}
-                    count={visibleOpen.length}
+                    count={sortedOpen.length}
                     canDrag={canDrag}
+                    canReorder={sort === 'manual'}
                     isDragging={draggingId === todo.id}
                     onToggle={toggleTodo}
                     onDelete={deleteTodo}

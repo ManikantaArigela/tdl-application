@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../api';
+import { advanceDueDate } from '../lib/format';
+import { showSystemNotification } from '../lib/notifications';
 
 // The app ships with a single light theme and a single brand color. Clear any
 // preference left behind by the old theme/accent switchers so it cannot
@@ -10,6 +12,29 @@ try {
 } catch {
   /* storage unavailable */
 }
+
+function readPreference(key, fallback = null) {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function storePreference(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* preferences are best-effort */
+  }
+}
+
+const initialPermission =
+  typeof window !== 'undefined' && 'Notification' in window
+    ? window.Notification.permission
+    : 'unsupported';
+
+const initialNotifyEnabled = readPreference('tdl.notify', 'on') !== 'off';
 
 export const useStore = create((set, get) => ({
   // ---- Data ----
@@ -29,7 +54,11 @@ export const useStore = create((set, get) => ({
   quickCaptureType: 'note',
   sidebarOpen: false,
   aiPanelOpen: false,
+  aiPlannerOpen: false,
+  aiSummaryOpen: false,
   exportOpen: false,
+  notifyEnabled: initialNotifyEnabled,
+  notificationPermission: initialPermission,
 
   // ---- Init ----
   init: async () => {
@@ -46,6 +75,18 @@ export const useStore = create((set, get) => ({
           err?.message ||
           'Could not reach the API. Start the backend on port 5001, then retry.',
       });
+    }
+  },
+
+  // ---- Data ----
+  refresh: async () => {
+    try {
+      const [notes, todos] = await Promise.all([api.getNotes(), api.getTodos()]);
+      set({ notes, todos, syncError: null });
+      return { notes, todos };
+    } catch (err) {
+      set({ syncError: err.message });
+      return null;
     }
   },
 
@@ -125,6 +166,16 @@ export const useStore = create((set, get) => ({
   toggleTodo: async (id) => {
     const todo = get().todos.find((t) => t.id === id);
     if (!todo) return null;
+
+    // Recurring tasks roll forward instead of closing, so the habit keeps going.
+    if (!todo.completed && todo.repeat && todo.repeat !== 'none') {
+      return get().updateTodo(id, {
+        dueDate: advanceDueDate(todo.dueDate, todo.repeat),
+        completed: false,
+        completedAt: null,
+      });
+    }
+
     const completed = !todo.completed;
     try {
       const updated = await api.updateTodo(id, {
@@ -194,8 +245,47 @@ export const useStore = create((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleAIPanel: () => set((s) => ({ aiPanelOpen: !s.aiPanelOpen })),
   setAIPanelOpen: (open) => set({ aiPanelOpen: open }),
+  setAIPlannerOpen: (open) => set({ aiPlannerOpen: open }),
+  setAISummaryOpen: (open) => set({ aiSummaryOpen: open }),
   setExportOpen: (open) => set({ exportOpen: open }),
   clearSyncError: () => set({ syncError: null }),
+
+  // ---- Notifications ----
+  setNotifyEnabled: (enabled) => {
+    storePreference('tdl.notify', enabled ? 'on' : 'off');
+    set({ notifyEnabled: enabled });
+  },
+  requestNotifications: async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      set({ notificationPermission: 'unsupported' });
+      return 'unsupported';
+    }
+    try {
+      const result = await window.Notification.requestPermission();
+      set({ notificationPermission: result });
+      if (result === 'granted') {
+        storePreference('tdl.notify', 'on');
+        set({ notifyEnabled: true });
+      }
+      return result;
+    } catch {
+      return 'error';
+    }
+  },
+  sendTestNotification: () => {
+    if (
+      typeof window === 'undefined' ||
+      !('Notification' in window) ||
+      window.Notification.permission !== 'granted'
+    ) {
+      return false;
+    }
+    showSystemNotification('TDL reminders are on', {
+      body: 'You will be notified when a task is due.',
+      tag: 'tdl-test',
+    });
+    return true;
+  },
 
   // ---- Derived ----
   get visibleNotes() {
@@ -283,7 +373,9 @@ export const useStore = create((set, get) => ({
     });
     lines.push('## Todos', '');
     todos.forEach((t) => {
-      lines.push(`- [${t.completed ? 'x' : ' '}] ${t.text} (${t.priority ?? 'medium'})`);
+      const due = t.dueDate ? `, due ${t.dueDate}${t.dueTime ? ` ${t.dueTime}` : ''}` : '';
+      const repeat = t.repeat && t.repeat !== 'none' ? `, ${t.repeat}` : '';
+      lines.push(`- [${t.completed ? 'x' : ' '}] ${t.text} (${t.priority ?? 'medium'}${due}${repeat})`);
     });
     return lines.join('\n');
   },

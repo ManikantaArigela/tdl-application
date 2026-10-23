@@ -7,6 +7,7 @@ import {
   Download,
   LayoutGrid,
   Star,
+  Wand2,
   X,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -18,6 +19,7 @@ export default function Sidebar() {
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const setExportOpen = useStore((s) => s.setExportOpen);
+  const setAIPlannerOpen = useStore((s) => s.setAIPlannerOpen);
 
   const notes = useStore((s) => s.notes);
   const todos = useStore((s) => s.todos);
@@ -119,6 +121,17 @@ export default function Sidebar() {
         </nav>
 
         <div className="border-t border-line p-3">
+          <button
+            type="button"
+            className="nav-item"
+            onClick={() => {
+              setAIPlannerOpen(true);
+              setSidebarOpen(false);
+            }}
+          >
+            <Wand2 className="h-[18px] w-[18px]" aria-hidden="true" />
+            AI planner
+          </button>
           <button
             type="button"
             className="nav-item"

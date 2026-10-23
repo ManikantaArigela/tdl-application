@@ -1,24 +1,65 @@
-# Dependencies
+# ---------- Dependencies ----------
 node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Build output
+# ---------- Build output ----------
 dist/
 build/
+out/
+.vite/
+.cache/
+.parcel-cache/
+.turbo/
+storybook-static/
+*.tsbuildinfo
+.eslintcache
 
-# Local environment files
+# ---------- Environment & secrets ----------
+# Real keys belong in .env files (e.g. backend/.env with GEMINI_API_KEY).
+# Only example files are committed.
 .env
 .env.*
 !.env.example
 
-# Test and tool output
-coverage/
-.vite/
+# ---------- Logs ----------
+logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Operating system files
-.DS_Store
-Thumbs.db
+# ---------- Tests & coverage ----------
+coverage/
+.nyc_output/
+*.lcov
+playwright-report/
+test-results/
 
-# Local note data and import backups (now stored in MongoDB)
+# ---------- Local note data and import backups (now stored in MongoDB) ----------
 backend/data/
+
+# ---------- Operating system files ----------
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---------- Editor files ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.history/

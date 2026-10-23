@@ -16,7 +16,7 @@ let server;
 let baseUrl;
 
 const NOTE_KEYS = ['id', 'title', 'content', 'tags', 'pinned', 'archived', 'createdAt', 'updatedAt'];
-const TODO_KEYS = ['id', 'text', 'priority', 'completed', 'dueDate', 'completedAt', 'createdAt'];
+const TODO_KEYS = ['id', 'text', 'priority', 'completed', 'dueDate', 'dueTime', 'repeat', 'completedAt', 'createdAt'];
 
 before(
   async () => {

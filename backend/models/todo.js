@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const { LIMITS, PRIORITIES } = require('../lib/sanitize');
+const { LIMITS, PRIORITIES, REPEATS } = require('../lib/sanitize');
 
 const todoSchema = new mongoose.Schema(
   {
@@ -14,6 +14,12 @@ const todoSchema = new mongoose.Schema(
     completed: { type: Boolean, default: false },
     // Stored as a string on purpose: the API has always returned string|null.
     dueDate: { type: String, default: null },
+    dueTime: { type: String, default: null },
+    repeat: {
+      type: String,
+      enum: [...REPEATS],
+      default: 'none',
+    },
     completedAt: { type: Date, default: null },
     createdAt: { type: Date, required: true },
     order: { type: Number, required: true },

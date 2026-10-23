@@ -1,7 +1,20 @@
 import React from 'react';
-import { Archive, ArchiveRestore, ArrowLeft, Pin, Save, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  Loader2,
+  Pin,
+  Save,
+  ScrollText,
+  Trash2,
+  Wand2,
+  X,
+} from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { formatDateTime, plural } from '../lib/format';
+import { api } from '../api';
 
 const AUTOSAVE_MS = 700;
 
@@ -16,6 +29,10 @@ export default function NoteEditor({ note }) {
   const [content, setContent] = React.useState(note.content ?? '');
   const [tagsText, setTagsText] = React.useState((note.tags ?? []).join(', '));
   const [status, setStatus] = React.useState('idle');
+  const [aiMode, setAiMode] = React.useState(null);
+  const [aiStatus, setAiStatus] = React.useState('idle');
+  const [aiResult, setAiResult] = React.useState('');
+  const [aiError, setAiError] = React.useState('');
 
   const dirtyRef = React.useRef(false);
   const latestRef = React.useRef({ title, content, tagsText });
@@ -26,6 +43,10 @@ export default function NoteEditor({ note }) {
     setContent(note.content ?? '');
     setTagsText((note.tags ?? []).join(', '));
     setStatus('idle');
+    setAiMode(null);
+    setAiStatus('idle');
+    setAiResult('');
+    setAiError('');
     dirtyRef.current = false;
   }, [note.id]);
 
@@ -86,6 +107,55 @@ export default function NoteEditor({ note }) {
     }
   };
 
+  const runAI = async (mode) => {
+    const draft = content.trim();
+    setAiMode(mode);
+    setAiStatus('loading');
+    setAiResult('');
+    setAiError('');
+
+    if (!draft) {
+      setAiStatus('error');
+      setAiError('Write a few lines first, then Gemini can improve or summarize them.');
+      return;
+    }
+
+    try {
+      const payload = { title: title.trim() || 'Untitled', content };
+      const response =
+        mode === 'enhance' ? await api.enhanceNote(payload) : await api.summarizeNotes(payload);
+      setAiResult(mode === 'enhance' ? response.content : response.summary);
+      setAiStatus('done');
+    } catch (err) {
+      const message = err.message || 'Gemini could not process this note.';
+      setAiError(
+        /not configured/i.test(message)
+          ? 'Gemini is not configured. Add GEMINI_API_KEY to backend/.env and restart the server.'
+          : message
+      );
+      setAiStatus('error');
+    }
+  };
+
+  const closeAI = () => {
+    setAiMode(null);
+    setAiStatus('idle');
+    setAiResult('');
+    setAiError('');
+  };
+
+  const applyAI = () => {
+    if (!aiResult) return;
+    if (aiMode === 'enhance') {
+      if (!window.confirm('Replace the current note with the AI draft?')) return;
+      setContent(aiResult);
+    } else {
+      setContent((current) => `${current.trimEnd()}\n\n## Summary\n\n${aiResult}\n`);
+    }
+    markDirty();
+    closeAI();
+  };
+
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
 
   const statusLabel =
@@ -104,6 +174,9 @@ export default function NoteEditor({ note }) {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
           event.preventDefault();
           saveNow();
+        } else if (event.key === 'Escape' && aiMode) {
+          event.stopPropagation();
+          closeAI();
         }
       }}
     >
@@ -171,6 +244,40 @@ export default function NoteEditor({ note }) {
         <span>{formatDateTime(note.updatedAt)}</span>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => runAI('enhance')}
+          disabled={aiStatus === 'loading'}
+          className="btn-ghost px-2.5 py-1.5 text-xs"
+          title="Restructure this note into clearer study notes"
+        >
+          {aiStatus === 'loading' && aiMode === 'enhance' ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Wand2 className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          Improve with AI
+        </button>
+        <button
+          type="button"
+          onClick={() => runAI('summarize')}
+          disabled={aiStatus === 'loading'}
+          className="btn-ghost px-2.5 py-1.5 text-xs"
+          title="Summarize this note with Gemini"
+        >
+          {aiStatus === 'loading' && aiMode === 'summarize' ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <ScrollText className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          Summarize
+        </button>
+        <span className="hidden text-[11px] text-faint sm:inline">
+          Gemini can structure and condense your notes.
+        </span>
+      </div>
+
       <div className="mt-4">
         <label htmlFor="note-tags" className="sr-only">
           Tags, separated by commas
@@ -186,6 +293,68 @@ export default function NoteEditor({ note }) {
           className="input py-2 text-xs"
         />
       </div>
+
+      {aiMode && (
+        <div className="mt-4 rounded-xl border border-accent/25 bg-accent/[0.04] p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-ink">
+              {aiMode === 'enhance' ? (
+                <Wand2 className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              ) : (
+                <ScrollText className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              )}
+              {aiMode === 'enhance' ? 'Improved draft' : 'Summary'}
+            </p>
+            <button
+              type="button"
+              onClick={closeAI}
+              className="icon-btn h-7 w-7"
+              aria-label="Close AI result"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+
+          {aiStatus === 'loading' && (
+            <p className="mt-2 flex items-center gap-2 text-xs text-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Working on your note…
+            </p>
+          )}
+
+          {aiStatus === 'error' && (
+            <div className="mt-2 flex items-start gap-2 text-xs leading-relaxed text-danger">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <p>
+                {aiError}{' '}
+                <button
+                  type="button"
+                  onClick={() => runAI(aiMode)}
+                  className="font-medium underline underline-offset-2"
+                >
+                  Retry
+                </button>
+              </p>
+            </div>
+          )}
+
+          {aiStatus === 'done' && (
+            <>
+              <div className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-line/70 bg-panel/70 p-3 text-[13px] leading-6 text-ink">
+                {aiResult}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                <button type="button" onClick={closeAI} className="btn-ghost px-3 py-1.5 text-xs">
+                  Discard
+                </button>
+                <button type="button" onClick={applyAI} className="btn-primary text-xs">
+                  {aiMode === 'enhance' ? 'Replace note' : 'Append summary'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <textarea
         value={content}

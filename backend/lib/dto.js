@@ -28,6 +28,8 @@ const toTodoDTO = (doc = {}) => ({
   priority: typeof doc.priority === 'string' ? doc.priority : 'medium',
   completed: Boolean(doc.completed),
   dueDate: typeof doc.dueDate === 'string' && doc.dueDate ? doc.dueDate : null,
+  dueTime: typeof doc.dueTime === 'string' && doc.dueTime ? doc.dueTime : null,
+  repeat: typeof doc.repeat === 'string' ? doc.repeat : 'none',
   completedAt: toMs(doc.completedAt),
   createdAt: toMs(doc.createdAt),
 });

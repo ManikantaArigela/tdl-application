@@ -25,4 +25,12 @@ export const api = {
   updateTodo: (id, todo) => request(`/todos/${id}`, { method: 'PUT', body: JSON.stringify(todo) }),
   deleteTodo: (id) => request(`/todos/${id}`, { method: 'DELETE' }),
   reorderTodos: (todos) => request('/todos/reorder', { method: 'PUT', body: JSON.stringify({ todos }) }),
+
+  // AI (Gemini runs server-side; the key never reaches the browser)
+  getAIStatus: () => request('/ai/status'),
+  generatePlan: (payload) => request('/ai/plan', { method: 'POST', body: JSON.stringify(payload) }),
+  enhanceNote: (payload) =>
+    request('/ai/notes/enhance', { method: 'POST', body: JSON.stringify(payload) }),
+  summarizeNotes: (payload) =>
+    request('/ai/notes/summarize', { method: 'POST', body: JSON.stringify(payload) }),
 };

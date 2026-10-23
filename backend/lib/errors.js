@@ -38,6 +38,11 @@ function mapError(error) {
     return { status: 503, body: { error: 'Database unavailable' } };
   }
 
+  // Services (Gemini) attach an HTTP status to errors a client can act on.
+  if (Number.isInteger(error.status) && error.status >= 400 && error.status < 600) {
+    return { status: error.status, body: { error: error.message || 'Request failed' } };
+  }
+
   return { status: 500, body: { error: 'Internal server error' } };
 }
 

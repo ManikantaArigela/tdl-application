@@ -1,4 +1,5 @@
 const PRIORITIES = new Set(['low', 'medium', 'high']);
+const REPEATS = new Set(['none', 'daily', 'weekly']);
 
 const LIMITS = {
   title: 300,
@@ -23,6 +24,22 @@ const normalizeTags = (value) => {
 
 const normalizePriority = (value, fallback = 'medium') =>
   PRIORITIES.has(value) ? value : fallback;
+
+const normalizeRepeat = (value, fallback = 'none') =>
+  REPEATS.has(value) ? value : fallback;
+
+/** Accepts a 24h "H:MM" or "HH:MM" clock string; anything else falls back. */
+const normalizeTime = (value, fallback = null) => {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string') return fallback;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return fallback;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return fallback;
+  return `${`${hours}`.padStart(2, '0')}:${match[2]}`;
+};
 
 const normalizeDueDate = (value, fallback = null) => {
   if (value === undefined) return fallback;
@@ -62,6 +79,9 @@ function sanitizeTodo(input = {}, base = {}) {
         : base.priority ?? 'medium',
     completed,
     dueDate: normalizeDueDate(input.dueDate, base.dueDate ?? null),
+    dueTime: normalizeTime(input.dueTime, base.dueTime ?? null),
+    repeat:
+      input.repeat !== undefined ? normalizeRepeat(input.repeat, base.repeat) : base.repeat ?? 'none',
     completedAt: completed
       ? normalizeTimestamp(input.completedAt, base.completedAt ?? Date.now())
       : null,
@@ -70,10 +90,13 @@ function sanitizeTodo(input = {}, base = {}) {
 
 module.exports = {
   PRIORITIES,
+  REPEATS,
   LIMITS,
   clampString,
   normalizeTags,
   normalizePriority,
+  normalizeRepeat,
+  normalizeTime,
   normalizeDueDate,
   normalizeTimestamp,
   sanitizeNote,

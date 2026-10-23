@@ -36,6 +36,45 @@ export function formatDateTime(value) {
   return `${dateFormatter.format(date)}, ${timeFormatter.format(date)}`;
 }
 
+/** Formats a 24h "HH:MM" clock string using the visitor's locale. */
+export function formatDueTime(value) {
+  if (typeof value !== 'string') return '';
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return '';
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return '';
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return timeFormatter.format(date);
+}
+
+/** Absolute timestamp for a task's due date + optional time (09:00 fallback). */
+export function dueTimestamp(todo) {
+  if (!todo?.dueDate) return null;
+  const date = toDate(todo.dueDate);
+  if (Number.isNaN(date.getTime())) return null;
+  const [hours, minutes] = (todo.dueTime || '09:00').split(':').map(Number);
+  date.setHours(
+    Number.isFinite(hours) ? hours : 9,
+    Number.isFinite(minutes) ? minutes : 0,
+    0,
+    0
+  );
+  return date.getTime();
+}
+
+/** Rolls a recurring task forward from its current due date (or today). */
+export function advanceDueDate(dueDate, repeat) {
+  const base = dueDate ? toDate(dueDate) : new Date();
+  const next = new Date(base);
+  if (repeat === 'daily') next.setDate(next.getDate() + 1);
+  else if (repeat === 'weekly') next.setDate(next.getDate() + 7);
+  else return dueDate ?? null;
+  next.setHours(12, 0, 0, 0);
+  return next.toISOString();
+}
+
 export function relativeTime(value) {
   if (!value) return '—';
   const date = toDate(value);

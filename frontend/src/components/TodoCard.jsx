@@ -6,16 +6,16 @@ import {
   CalendarClock,
   CalendarDays,
   Check,
+  Repeat,
   Trash2,
 } from 'lucide-react';
-import { dayKey, formatDate, isOverdue } from '../lib/format';
+import { dayKey, dueTimestamp, formatDate, formatDueTime, isOverdue } from '../lib/format';
 
 export const PRIORITIES = [
   {
     id: 'low',
     label: 'Low',
     dot: 'bg-success',
-    bar: 'bg-success/70',
     aura: 'bg-success/20',
     chip: 'text-success',
   },
@@ -23,7 +23,6 @@ export const PRIORITIES = [
     id: 'medium',
     label: 'Medium',
     dot: 'bg-warning',
-    bar: 'bg-warning/70',
     aura: 'bg-warning/20',
     chip: 'text-warning',
   },
@@ -31,7 +30,6 @@ export const PRIORITIES = [
     id: 'high',
     label: 'High',
     dot: 'bg-danger',
-    bar: 'bg-danger/70',
     aura: 'bg-danger/20',
     chip: 'text-danger',
   },
@@ -43,6 +41,7 @@ const priorityMeta = (value) =>
 export default function TodoCard({
   todo,
   canDrag = false,
+  canReorder = true,
   isDragging = false,
   index = 0,
   count = 1,
@@ -58,8 +57,12 @@ export default function TodoCard({
   const dragControls = useDragControls();
 
   const priority = priorityMeta(todo.priority);
-  const overdue = !todo.completed && isOverdue(todo.dueDate);
+  const dueTs = dueTimestamp(todo);
+  const overdue =
+    !todo.completed &&
+    (isOverdue(todo.dueDate) || (Boolean(todo.dueTime) && dueTs !== null && dueTs < Date.now()));
   const dueToday = Boolean(todo.dueDate) && dayKey(todo.dueDate) === dayKey(new Date());
+  const repeats = todo.repeat && todo.repeat !== 'none';
 
   // Grab the card anywhere that isn't an interactive control.
   const handlePointerDown = (event) => {
@@ -96,19 +99,13 @@ export default function TodoCard({
         canDrag ? 'cursor-grab select-none active:cursor-grabbing' : ''
       } ${isDragging ? 'z-30 cursor-grabbing shadow-lift ring-2 ring-accent/40' : ''}`}
     >
-      {/* Priority edge */}
-      <span
-        aria-hidden="true"
-        className={`absolute inset-y-0 left-0 w-[3px] ${priority.bar}`}
-      />
-
       {/* Priority aura on hover */}
       <span
         aria-hidden="true"
         className={`pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full blur-2xl transition-opacity duration-300 ${priority.aura} opacity-0 group-hover:opacity-100`}
       />
 
-      <div className="relative flex flex-1 items-start gap-3 p-4 pl-5">
+      <div className="relative flex flex-1 items-start gap-3 p-4">
         <button
           type="button"
           role="checkbox"
@@ -144,21 +141,30 @@ export default function TodoCard({
             {todo.text}
           </p>
 
-          {todo.dueDate && (
+          {(todo.dueDate || repeats) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
-                  overdue
-                    ? 'border-danger/25 bg-danger/10 font-medium text-danger'
-                    : dueToday
-                    ? 'border-warning/25 bg-warning/10 font-medium text-warning'
-                    : 'border-line/70 bg-raised/70 text-muted'
-                }`}
-              >
-                <CalendarDays className="h-3 w-3" aria-hidden="true" />
-                {overdue ? 'Overdue · ' : dueToday ? 'Today · ' : ''}
-                {formatDate(todo.dueDate)}
-              </span>
+              {todo.dueDate && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+                    overdue
+                      ? 'border-danger/25 bg-danger/10 font-medium text-danger'
+                      : dueToday
+                      ? 'border-warning/25 bg-warning/10 font-medium text-warning'
+                      : 'border-line/70 bg-raised/70 text-muted'
+                  }`}
+                >
+                  <CalendarDays className="h-3 w-3" aria-hidden="true" />
+                  {overdue ? 'Overdue · ' : dueToday ? 'Today · ' : ''}
+                  {formatDate(todo.dueDate)}
+                  {todo.dueTime ? ` · ${formatDueTime(todo.dueTime)}` : ''}
+                </span>
+              )}
+              {repeats && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-line/70 bg-raised/70 px-2 py-0.5 text-[11px] text-muted">
+                  <Repeat className="h-3 w-3" aria-hidden="true" />
+                  {todo.repeat === 'daily' ? 'Daily' : 'Weekly'}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -186,7 +192,7 @@ export default function TodoCard({
           <button
             type="button"
             onClick={() => onMove(todo.id, -1)}
-            disabled={index <= 0}
+            disabled={!canReorder || index <= 0}
             className="icon-btn h-7 w-7 disabled:pointer-events-none disabled:opacity-25 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
             aria-label={`Move up: ${todo.text}`}
           >
@@ -195,7 +201,7 @@ export default function TodoCard({
           <button
             type="button"
             onClick={() => onMove(todo.id, 1)}
-            disabled={index === count - 1}
+            disabled={!canReorder || index === count - 1}
             className="icon-btn h-7 w-7 disabled:pointer-events-none disabled:opacity-25 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
             aria-label={`Move down: ${todo.text}`}
           >

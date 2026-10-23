@@ -17,6 +17,8 @@ const toDoc = (todo) => ({
   priority: todo.priority,
   completed: todo.completed,
   dueDate: todo.dueDate,
+  dueTime: todo.dueTime,
+  repeat: todo.repeat,
   completedAt: todo.completedAt === null ? null : new Date(todo.completedAt),
 });
 

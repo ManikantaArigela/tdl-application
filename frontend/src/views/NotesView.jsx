@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, SearchX, StickyNote } from 'lucide-react';
+import { Plus, ScrollText, SearchX, StickyNote } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import TiltNoteCard from '../components/TiltNoteCard';
 import { plural } from '../lib/format';
@@ -13,6 +13,7 @@ export default function NotesView({ starred = false, archive = false } = {}) {
   const toggleArchive = useStore((s) => s.toggleArchive);
   const deleteNote = useStore((s) => s.deleteNote);
   const setActiveView = useStore((s) => s.setActiveView);
+  const setAISummaryOpen = useStore((s) => s.setAISummaryOpen);
 
   const query = searchQuery.trim().toLowerCase();
   const searching = query.length > 0;
@@ -80,9 +81,19 @@ export default function NotesView({ starred = false, archive = false } = {}) {
           </p>
         </div>
         {!archive && !starred && (
-          <button type="button" onClick={handleCreate} className="btn-primary">
-            <Plus className="h-4 w-4" aria-hidden="true" /> New note
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAISummaryOpen(true)}
+              className="btn-ghost"
+              title="Summarize all notes with Gemini"
+            >
+              <ScrollText className="h-4 w-4" aria-hidden="true" /> Summarize
+            </button>
+            <button type="button" onClick={handleCreate} className="btn-primary">
+              <Plus className="h-4 w-4" aria-hidden="true" /> New note
+            </button>
+          </div>
         )}
       </div>
 
