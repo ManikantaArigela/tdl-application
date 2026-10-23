@@ -1,0 +1,28 @@
+const API_BASE = '/api';
+
+async function request(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    ...options,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Request failed ${res.status}`);
+  }
+  return res.json();
+}
+
+export const api = {
+  // Notes
+  getNotes: () => request('/notes'),
+  createNote: (note) => request('/notes', { method: 'POST', body: JSON.stringify(note) }),
+  updateNote: (id, note) => request(`/notes/${id}`, { method: 'PUT', body: JSON.stringify(note) }),
+  deleteNote: (id) => request(`/notes/${id}`, { method: 'DELETE' }),
+
+  // Todos
+  getTodos: () => request('/todos'),
+  createTodo: (todo) => request('/todos', { method: 'POST', body: JSON.stringify(todo) }),
+  updateTodo: (id, todo) => request(`/todos/${id}`, { method: 'PUT', body: JSON.stringify(todo) }),
+  deleteTodo: (id) => request(`/todos/${id}`, { method: 'DELETE' }),
+  reorderTodos: (todos) => request('/todos/reorder', { method: 'PUT', body: JSON.stringify({ todos }) }),
+};

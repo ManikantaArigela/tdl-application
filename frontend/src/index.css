@@ -1,0 +1,196 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: 246 244 239;
+    --surface: 255 255 255;
+    --surface-2: 249 247 241;
+    --line: 223 218 207;
+    --text: 26 29 38;
+    --muted: 92 97 110;
+    --faint: 130 135 148;
+    --accent: 15 118 110;
+    --accent-strong: 13 99 93;
+    --accent-fg: 255 255 255;
+    --success: 4 120 87;
+    --warning: 161 98 7;
+    --danger: 185 28 28;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --bg: 13 17 28;
+    --surface: 20 25 39;
+    --surface-2: 26 32 49;
+    --line: 45 53 73;
+    --text: 235 238 245;
+    --muted: 158 165 182;
+    --faint: 116 124 143;
+    --accent: 45 212 191;
+    --accent-strong: 20 184 166;
+    --accent-fg: 8 20 20;
+    --success: 52 211 153;
+    --warning: 251 191 36;
+    --danger: 248 113 113;
+  }
+
+  [data-accent='iris'] {
+    --accent: 91 75 214;
+    --accent-strong: 76 61 190;
+    --accent-fg: 255 255 255;
+  }
+  .dark[data-accent='iris'] {
+    --accent: 167 139 250;
+    --accent-strong: 139 108 246;
+    --accent-fg: 18 14 38;
+  }
+
+  [data-accent='ember'] {
+    --accent: 180 83 9;
+    --accent-strong: 154 68 6;
+    --accent-fg: 255 255 255;
+  }
+  .dark[data-accent='ember'] {
+    --accent: 251 191 36;
+    --accent-strong: 245 158 11;
+    --accent-fg: 32 20 3;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--text));
+    overflow-x: hidden;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background-color: rgb(var(--accent) / 0.28);
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-line bg-panel;
+  }
+
+  .panel-raised {
+    @apply rounded-2xl border border-line bg-panel shadow-panel;
+  }
+
+  .btn,
+  .btn-primary,
+  .btn-ghost,
+  .btn-subtle,
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors duration-120 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-accent-fg hover:bg-accent-strong;
+  }
+
+  .btn-ghost {
+    @apply border border-line bg-transparent text-muted hover:bg-raised hover:text-ink;
+  }
+
+  .btn-subtle {
+    @apply bg-raised text-ink hover:bg-line/60;
+  }
+
+  .btn-danger {
+    @apply bg-transparent text-danger hover:bg-danger/10;
+  }
+
+  .icon-btn {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors duration-120 hover:bg-raised hover:text-ink;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-line bg-panel px-3.5 py-2.5 text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-raised px-2.5 py-0.5 text-xs text-muted;
+  }
+
+  .kbd {
+    @apply rounded border border-line bg-raised px-1.5 py-0.5 font-mono text-[10px] leading-none text-muted;
+  }
+
+  .nav-item {
+    @apply flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-muted transition-colors duration-120 hover:bg-raised hover:text-ink;
+  }
+
+  .nav-item-active {
+    @apply bg-accent/10 text-ink;
+  }
+
+  .summary-reset {
+    list-style: none;
+  }
+  .summary-reset::-webkit-details-marker {
+    display: none;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-raised;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-line/50 to-transparent;
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text-pretty {
+  text-wrap: pretty;
+}

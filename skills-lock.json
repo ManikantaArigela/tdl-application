@@ -1,0 +1,443 @@
+{
+  "version": 1,
+  "skills": {
+    "01-frontend-architecture": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/01-frontend-architecture/SKILL.md",
+      "computedHash": "0f29808fe0ef94f3c5085f829fc22ded9d1a9b9f05d2ca5d3d31f3d815909925"
+    },
+    "02-react": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/02-react/SKILL.md",
+      "computedHash": "c0ba3d74a8b0b65fda7ea05ba03181298cffc01b8d48ca06173947dd6a674f6a"
+    },
+    "03-nextjs": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/03-nextjs/SKILL.md",
+      "computedHash": "bf4a90334525aeab5949af25d118d7fbac0c0c7950e87831dc3ef526ab257f10"
+    },
+    "04-typescript": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/04-typescript/SKILL.md",
+      "computedHash": "2a28f36b82c23e47afa4904245d50e7db54a66de7f65a7d0e9629cbb3950640f"
+    },
+    "05-html": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/05-html/SKILL.md",
+      "computedHash": "ab9d80c36dd444fdc3e936eb421c083f4a29e16f70632d04ef27bb790e9725c4"
+    },
+    "06-css": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/06-css/SKILL.md",
+      "computedHash": "5b02ff1fd6dfbd94eb58edc8cfc6944d94d864578fbb3cd9414ff7d3a669eedf"
+    },
+    "07-responsive-design": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/07-responsive-design/SKILL.md",
+      "computedHash": "cecccb141f31a68d50d51d378585f76d88c2654d871e512b59ae05c15d4dea6e"
+    },
+    "08-ui-ux-design": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/08-ui-ux-design/SKILL.md",
+      "computedHash": "9dc9fee007b1130e0008be815da9f306251f4763db80a8c97abb5a8100b2bfbb"
+    },
+    "09-design-systems": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/09-design-systems/SKILL.md",
+      "computedHash": "09bbb9ea6c74fb4d273623d2ca712c8f332ac997dc93b9461de1d72a787bde2f"
+    },
+    "10-component-engineering": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/10-component-engineering/SKILL.md",
+      "computedHash": "8b5796e94e18cc0c1d827a2d7c1a600927db290fb4aaee3f87bf7bd80924f1e6"
+    },
+    "11-accessibility": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/11-accessibility/SKILL.md",
+      "computedHash": "78eb11a51700de80820ae1aa68904a8ccb479206f19d749339a220f713cf2523"
+    },
+    "12-forms-validation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/12-forms-validation/SKILL.md",
+      "computedHash": "baab5e2cf3c89804caf8919b116e825812cd7994c5b2ffa07ed471ad773187e5"
+    },
+    "13-api-integration": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/13-api-integration/SKILL.md",
+      "computedHash": "72380ae6c948a3952cb8a6e92cb06952eec4fa3d2e1c463a42542466c0655374"
+    },
+    "14-state-management": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/14-state-management/SKILL.md",
+      "computedHash": "c88e13f6718fcf43b80091c1d0eb519d4d188991f0021c092e15d2befe3fc7fa"
+    },
+    "15-data-fetching": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/15-data-fetching/SKILL.md",
+      "computedHash": "b543a68b839ce1e2e29ecca60a2f7d17a290bdfb39f89141fe8d932453e1a20b"
+    },
+    "16-frontend-security": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/16-frontend-security/SKILL.md",
+      "computedHash": "967ea56574762511a47051c608bdc1e5a07fc171490c8900ea912f6a1d07bb60"
+    },
+    "17-frontend-performance": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/17-frontend-performance/SKILL.md",
+      "computedHash": "17271e86ccc518c9fe4f83f8f6bbffd2b7b950b5dc11c6804f3639e297aee3c9"
+    },
+    "18-image-optimization": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/18-image-optimization/SKILL.md",
+      "computedHash": "3453837bb7ce7d278ebe2eafdb7dbcbbde2de3b284e0b0a5b914c3d73f6781e3"
+    },
+    "19-video-optimization": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/19-video-optimization/SKILL.md",
+      "computedHash": "915fed11c8c5d983a866d5b125deaaa3b2cf8332ef630a5dc5b4dda1b099baaf"
+    },
+    "20-browser-apis": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/20-browser-apis/SKILL.md",
+      "computedHash": "33d0479e776f09d07e7909d4e532d286a31ecc96b14fca13a311683a252ab91e"
+    },
+    "21-animation-fundamentals": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/21-animation-fundamentals/SKILL.md",
+      "computedHash": "5ea4188adbf6d6648513483b42fa9d4b6b36851662241380615238f475c0b209"
+    },
+    "22-gsap": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/22-gsap/SKILL.md",
+      "computedHash": "ed88ff5aae01c24e6f3eb323fe8c051557d8a7e88bb8798b53d838b1276f1217"
+    },
+    "23-gsap-scrolltrigger": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/23-gsap-scrolltrigger/SKILL.md",
+      "computedHash": "2ef2e08ed04ac3baa4d99148deac537504bc24be2781d180fc128945301ee943"
+    },
+    "24-lenis": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/24-lenis/SKILL.md",
+      "computedHash": "846673af0a20eedfb7f32e89c90648ba064d13cc633158392485147a6c1d1c4b"
+    },
+    "25-framer-motion": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/25-framer-motion/SKILL.md",
+      "computedHash": "49a7305f0570cf9491483a6b1d144117dc718ee110b6785973d0feab4a30f12f"
+    },
+    "26-motion-react": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/26-motion-react/SKILL.md",
+      "computedHash": "ea6c36ce2c345f2c2ab8a3030e079e3276914b8f072630ef29cfb6302d7f1516"
+    },
+    "27-scroll-storytelling": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/27-scroll-storytelling/SKILL.md",
+      "computedHash": "0c8f151adb7f1821cb344519606daebd496741c53f53b3d5840b7d758af99223"
+    },
+    "28-image-sequence-scroll": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/28-image-sequence-scroll/SKILL.md",
+      "computedHash": "2ea0651c6a3e81b4c9bb385e32933d3e59e350c2c2e7e4c35f14983ced3da380"
+    },
+    "29-video-scroll-scrubbing": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/29-video-scroll-scrubbing/SKILL.md",
+      "computedHash": "5ac63490474a74793c99ed6da8b4dcbb858ad2911ddea5817502763a4364d17b"
+    },
+    "30-canvas-animation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/30-canvas-animation/SKILL.md",
+      "computedHash": "cf9138eecdd0a726126527197e36b4b48a77efb8c944bbd901427e091a24fa7c"
+    },
+    "31-svg-animation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/31-svg-animation/SKILL.md",
+      "computedHash": "f0f4a8bcdef60276c08603f20d87e321750674392113c13d85f74f7414bb1e2f"
+    },
+    "32-text-animation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/32-text-animation/SKILL.md",
+      "computedHash": "83b64a4f9b104a1c505e183897c87b39da07d53a583d1571a64703eb3becf24f"
+    },
+    "33-parallax": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/33-parallax/SKILL.md",
+      "computedHash": "de772c5cbf0126631ca31a3872b1d7af2e8c4434d06aca474b0c3a76a0a8eead"
+    },
+    "34-horizontal-scroll": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/34-horizontal-scroll/SKILL.md",
+      "computedHash": "929a720a70246010f48b5af49ad9c60f6cf1a76136390c54392787d20ce3c05c"
+    },
+    "35-pinned-scroll": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/35-pinned-scroll/SKILL.md",
+      "computedHash": "68348eb4f7caff81a9ed9ff3149129adcbbf3626a45e196a1f8b2892af87559e"
+    },
+    "36-scroll-progress": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/36-scroll-progress/SKILL.md",
+      "computedHash": "2e72d3ac5474b38032b0afaa995818a60f928f8c6cb98a172d8e3db517f344f1"
+    },
+    "37-micro-interactions": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/37-micro-interactions/SKILL.md",
+      "computedHash": "a79e39203357991c22e3f91e378806a0d9cecfd2062373fc5e0a968b38f63a31"
+    },
+    "38-page-transitions": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/38-page-transitions/SKILL.md",
+      "computedHash": "b9d534d61a7f10b7621ee9f6377b24243d921290af8232b827aae5e129021817"
+    },
+    "39-loading-experiences": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/39-loading-experiences/SKILL.md",
+      "computedHash": "504d8c0f7c5bf2b8f4093f5f67d7fc97ef86f3850ff334122b41b14788437c50"
+    },
+    "40-cursor-effects": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/40-cursor-effects/SKILL.md",
+      "computedHash": "b673374187acfea7805906b05274087661d3f134546072e0f6f6b8a6aae43dba"
+    },
+    "41-threejs": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/41-threejs/SKILL.md",
+      "computedHash": "a6db830649752f832a021d6e0abed691b6ce09b9a5d2b30d0eedd234ccd7b13c"
+    },
+    "42-react-three-fiber": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/42-react-three-fiber/SKILL.md",
+      "computedHash": "97dac79e411528d55023fa75fe59e8b353f818f920ad06cbdfc3eb99a55086cd"
+    },
+    "43-drei": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/43-drei/SKILL.md",
+      "computedHash": "7025c030b6442d9a32ba03f7fd82378b1d4988e0d2973f37f532f5038af6e4cb"
+    },
+    "44-webgl": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/44-webgl/SKILL.md",
+      "computedHash": "a71f3db66ba46c0c94d4cb216f95cfabb1ad661e7220cced8b3df359922697b5"
+    },
+    "45-glsl-shaders": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/45-glsl-shaders/SKILL.md",
+      "computedHash": "ccb3b806e33b7136cb9b514a9de74aaa105f7fbffc9e9dfb5638546db7d8ee07"
+    },
+    "46-lottie": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/46-lottie/SKILL.md",
+      "computedHash": "123fd00e4046bafa95bad10b7ffaddc854987c149f9bdec8419832a2fe94d29c"
+    },
+    "47-sprite-animation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/47-sprite-animation/SKILL.md",
+      "computedHash": "cba5c982fa357658653557d6abf8ec20959f48e4a8ebae02647ae3bc1bdda237"
+    },
+    "48-3d-scroll-storytelling": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/48-3d-scroll-storytelling/SKILL.md",
+      "computedHash": "6f9225818cb92e7ac9eb9fbc44c11ceedd56dd67130dfd7ff9a1b6d085ccc03d"
+    },
+    "49-responsive-animation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/49-responsive-animation/SKILL.md",
+      "computedHash": "33742bc502878562f8c12e39852d4bd0a1f64974578b82b0b36d2ae09c127b2d"
+    },
+    "50-motion-accessibility": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/50-motion-accessibility/SKILL.md",
+      "computedHash": "54c8655bde28f46af5bdb61d16113dd2f1d6dd20aca7b80f884760c01e91cc52"
+    },
+    "51-animation-performance": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/51-animation-performance/SKILL.md",
+      "computedHash": "ad706fece96c849d5bbb5d3eb7fb143d8d1d09db86e893b105b3d7587110e580"
+    },
+    "52-mobile-animation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/52-mobile-animation/SKILL.md",
+      "computedHash": "da6b2a21c0ffcfc828c1b2e5ba0d80969861aa570cc4ae751c79027460a5fe57"
+    },
+    "53-touch-interactions": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/53-touch-interactions/SKILL.md",
+      "computedHash": "9dd0e8a9f93e57f59fa03dae52a04cc50f2f89d8529957369e406e571a8cf6b3"
+    },
+    "54-visual-regression": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/54-visual-regression/SKILL.md",
+      "computedHash": "da3bc91259888ed8c7ceac2ded58563bf5f854cda82180eefa722a5c1d8b45a9"
+    },
+    "55-frontend-testing": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/55-frontend-testing/SKILL.md",
+      "computedHash": "7d60d49da54025b6e86164a003f752b3032a3cfca0cfbb322df3df599652f85c"
+    },
+    "56-browser-debugging": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/56-browser-debugging/SKILL.md",
+      "computedHash": "23055408ad75feecc684d953953a34d3198b5b20a2fc314727416ebc88666c62"
+    },
+    "57-web-vitals": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/57-web-vitals/SKILL.md",
+      "computedHash": "230c0aca1a2795d0db66d0cb95a8d385dbbc72a0917f9d6046ff104a5892142d"
+    },
+    "58-seo": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/58-seo/SKILL.md",
+      "computedHash": "cea852ae91c584a9bef5e3c43fd1fc059ec5d209e27d757257f5853e901f9520"
+    },
+    "59-pwa": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/59-pwa/SKILL.md",
+      "computedHash": "167ed722a8ce8993ebb0894f74e1cc4c91fe0abe84901f8be20812783d913b5e"
+    },
+    "60-internationalization": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/60-internationalization/SKILL.md",
+      "computedHash": "65e2ed5aee66d7befdaf2673868660c3e505b1b3ea7881cfb7340cd1309676ab"
+    },
+    "61-component-documentation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/61-component-documentation/SKILL.md",
+      "computedHash": "4fa713b6676c08daf8693853ad932cc339973f33196b23486a50dce4a6c8a9c1"
+    },
+    "62-frontend-refactoring": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/62-frontend-refactoring/SKILL.md",
+      "computedHash": "fb46d90680dfb2a37207b847fda423123ebaf60c520e07bc567def560568bdb9"
+    },
+    "63-frontend-code-review": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/63-frontend-code-review/SKILL.md",
+      "computedHash": "7af7ea9db2ee0dcba8d4be43e5d0451c4c6cad77cfe48c563764da63af841b25"
+    },
+    "64-frontend-debugging": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/64-frontend-debugging/SKILL.md",
+      "computedHash": "a43d60a9d35e4462d46c68faaeb750dc8a7fd95efb3f6db39201a212489516c0"
+    },
+    "65-design-to-code": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/65-design-to-code/SKILL.md",
+      "computedHash": "e53a92b438510ebea4946523fbc02ddc736726633c0dad9fd5023213124957b1"
+    },
+    "66-screenshot-to-code": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/66-screenshot-to-code/SKILL.md",
+      "computedHash": "ef30d973ff0f47a583e8a0a20f0dd15ca017906c4cf17aaa1fa4bafb89fd5f8c"
+    },
+    "67-figma-to-code": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/67-figma-to-code/SKILL.md",
+      "computedHash": "04d5e45db51f81b7503767e136ccb8ebbfc688544b76c75bbc79e205c9216727"
+    },
+    "68-ai-ui-generation": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/68-ai-ui-generation/SKILL.md",
+      "computedHash": "42f8212ff83117a951d009722e2467bcf36546eaea6ca6cdb4487e5549a51b9d"
+    },
+    "69-ai-frontend-workflow": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/69-ai-frontend-workflow/SKILL.md",
+      "computedHash": "8dd336307bb0b137d683929ecadb3df88b039919116f99aef80f514f6489d109"
+    },
+    "70-frontend-skill-router": {
+      "source": "JustineBijuPaul/frontend-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/70-frontend-skill-router/SKILL.md",
+      "computedHash": "2ed627639dd6618ca2ddf2ab98220a4ac30bb5f2f68e64279b1da0aaecafb914"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "106acf230014cbb43ca34e6410371321b56ca742f9ee0442e8ec05bf02eb0384"
+    },
+    "theme-factory": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/theme-factory/SKILL.md",
+      "computedHash": "e9ec1fe85faa729e9f3d1731cd7e4e485f98c099ccc7c1c0d198f473aa4b654a"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "computedHash": "d8e7d3afe37dcc8a97b99ffb5afdb4d0919ae0092ea8b68f44eb201f035e33ac"
+    }
+  }
+}
