@@ -16,6 +16,7 @@ import ExportDialog from './components/ExportDialog';
 import ReminderCenter from './components/ReminderCenter';
 import AIPlannerDialog from './components/AIPlannerDialog';
 import AISummaryDialog from './components/AISummaryDialog';
+import AuthScreen from './components/AuthScreen';
 
 // Three.js is only needed for the ambient canvas, so keep it out of the initial bundle.
 const AmbientBackground = React.lazy(() => import('./components/AmbientBackground'));
@@ -83,6 +84,8 @@ export default function App() {
   const selectedNoteId = useStore((s) => s.selectedNoteId);
   const notes = useStore((s) => s.notes);
   const loaded = useStore((s) => s.loaded);
+  const authReady = useStore((s) => s.authReady);
+  const session = useStore((s) => s.session);
   const syncError = useStore((s) => s.syncError);
   const commandPaletteOpen = useStore((s) => s.commandPaletteOpen);
   const quickCaptureOpen = useStore((s) => s.quickCaptureOpen);
@@ -94,8 +97,8 @@ export default function App() {
   const note = selectedNoteId ? notes.find((n) => n.id === selectedNoteId) : null;
 
   React.useEffect(() => {
-    if (!loaded) useStore.getState().init();
-  }, [loaded]);
+    useStore.getState().initAuth();
+  }, []);
 
   React.useEffect(() => {
     const onKeyDown = (event) => {
@@ -134,6 +137,16 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  if (!authReady) return <LoadingScreen />;
+
+  if (!session) {
+    return (
+      <ErrorBoundary>
+        <AuthScreen />
+      </ErrorBoundary>
+    );
+  }
 
   if (!loaded) return <LoadingScreen />;
 

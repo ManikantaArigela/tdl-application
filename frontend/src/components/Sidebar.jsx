@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   Download,
   LayoutGrid,
+  Loader2,
+  LogOut,
   Star,
   Wand2,
   X,
@@ -20,6 +22,9 @@ export default function Sidebar() {
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const setExportOpen = useStore((s) => s.setExportOpen);
   const setAIPlannerOpen = useStore((s) => s.setAIPlannerOpen);
+  const user = useStore((s) => s.user);
+  const signOut = useStore((s) => s.signOut);
+  const authBusy = useStore((s) => s.authBusy);
 
   const notes = useStore((s) => s.notes);
   const todos = useStore((s) => s.todos);
@@ -151,6 +156,35 @@ export default function Sidebar() {
               <kbd className="kbd">⌘</kbd>
               <kbd className="kbd">K</kbd>
             </span>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-line bg-raised/60 px-3 py-2">
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold uppercase text-accent"
+              aria-hidden="true"
+            >
+              {(user?.email || '?').charAt(0)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium text-ink" title={user?.email || ''}>
+                {user?.email || 'Signed in'}
+              </p>
+              <p className="text-[10px] text-faint">Private workspace</p>
+            </div>
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={authBusy}
+              className="icon-btn h-8 w-8 shrink-0"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              {authBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+              )}
+            </button>
           </div>
         </div>
       </aside>

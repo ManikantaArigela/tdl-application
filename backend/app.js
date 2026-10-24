@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 
-const db = require('./db');
+const { requireAuth } = require('./lib/auth');
+const { checkDatabase: checkSupabase } = require('./lib/supabase');
 const { mapError } = require('./lib/errors');
 const gemini = require('./lib/gemini');
 const {
@@ -17,13 +18,23 @@ const {
 /**
  * Storage-agnostic application factory.
  *
- * `repos` must provide:
+ * `createRepos(supabase, userId)` returns:
  *   notes: { list, create, update, remove }
  *   todos: { list, create, update, remove, reorder }
+ *
+ * `authenticate` verifies the bearer token and populates `req.userId` and
+ * `req.supabase`. Both hooks are injectable so route tests run without Supabase.
  */
-function createApp({ repos } = {}) {
-  if (!repos?.notes || !repos?.todos) {
-    throw new Error('createApp requires { repos: { notes, todos } }');
+function createApp({
+  createRepos,
+  authenticate = requireAuth,
+  checkDatabase = checkSupabase,
+} = {}) {
+  if (typeof createRepos !== 'function') {
+    throw new Error('createApp requires { createRepos: (supabase, userId) => repos }');
+  }
+  if (typeof authenticate !== 'function') {
+    throw new Error('createApp requires an authenticate middleware');
   }
 
   const app = express();
@@ -35,25 +46,70 @@ function createApp({ repos } = {}) {
   const wrap = (handler) => (req, res, next) =>
     Promise.resolve(handler(req, res, next)).catch(next);
 
+  // Private routes need both a verified user and user-scoped repositories.
+  const withRepos = (req, res, next) => {
+    try {
+      req.repos = createRepos(req.supabase, req.userId);
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  // ---------- Public ----------
+  app.get(
+    '/api/health',
+    wrap(async (req, res) => {
+      try {
+        await checkDatabase();
+      } catch (error) {
+        console.error('Health check failed:', error.message);
+        return res.status(503).json({
+          status: 'degraded',
+          storage: 'supabase',
+          error: 'Database unavailable',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return res.json({
+        status: 'ok',
+        storage: 'supabase',
+        timestamp: new Date().toISOString(),
+      });
+    })
+  );
+
+  app.get(
+    '/api/ai/status',
+    wrap(async (req, res) => {
+      res.json({ configured: gemini.isConfigured(), model: gemini.getModel() });
+    })
+  );
+
+  // ---------- Authenticated scopes ----------
+  app.use('/api/notes', authenticate, withRepos);
+  app.use('/api/todos', authenticate, withRepos);
+  app.use('/api/ai', authenticate, withRepos);
+
   // ---------- Notes ----------
   app.get(
     '/api/notes',
     wrap(async (req, res) => {
-      res.json(await repos.notes.list());
+      res.json(await req.repos.notes.list());
     })
   );
 
   app.post(
     '/api/notes',
     wrap(async (req, res) => {
-      res.status(201).json(await repos.notes.create(req.body ?? {}));
+      res.status(201).json(await req.repos.notes.create(req.body ?? {}));
     })
   );
 
   app.put(
     '/api/notes/:id',
     wrap(async (req, res) => {
-      const note = await repos.notes.update(req.params.id, req.body ?? {});
+      const note = await req.repos.notes.update(req.params.id, req.body ?? {});
       if (!note) return res.status(404).json({ error: 'Note not found' });
       return res.json(note);
     })
@@ -62,7 +118,7 @@ function createApp({ repos } = {}) {
   app.delete(
     '/api/notes/:id',
     wrap(async (req, res) => {
-      const removed = await repos.notes.remove(req.params.id);
+      const removed = await req.repos.notes.remove(req.params.id);
       if (!removed) return res.status(404).json({ error: 'Note not found' });
       return res.json({ success: true });
     })
@@ -72,7 +128,7 @@ function createApp({ repos } = {}) {
   app.get(
     '/api/todos',
     wrap(async (req, res) => {
-      res.json(await repos.todos.list());
+      res.json(await req.repos.todos.list());
     })
   );
 
@@ -84,14 +140,14 @@ function createApp({ repos } = {}) {
       if (!Array.isArray(incoming)) {
         return res.status(400).json({ error: 'A "todos" array is required' });
       }
-      return res.json(await repos.todos.reorder(incoming));
+      return res.json(await req.repos.todos.reorder(incoming));
     })
   );
 
   app.post(
     '/api/todos',
     wrap(async (req, res) => {
-      const result = await repos.todos.create(req.body ?? {});
+      const result = await req.repos.todos.create(req.body ?? {});
       if (!result.ok) return res.status(400).json({ error: 'Todo text is required' });
       return res.status(201).json(result.todo);
     })
@@ -100,7 +156,7 @@ function createApp({ repos } = {}) {
   app.put(
     '/api/todos/:id',
     wrap(async (req, res) => {
-      const result = await repos.todos.update(req.params.id, req.body ?? {});
+      const result = await req.repos.todos.update(req.params.id, req.body ?? {});
       if (!result.ok && result.reason === 'not_found') {
         return res.status(404).json({ error: 'Todo not found' });
       }
@@ -112,20 +168,13 @@ function createApp({ repos } = {}) {
   app.delete(
     '/api/todos/:id',
     wrap(async (req, res) => {
-      const removed = await repos.todos.remove(req.params.id);
+      const removed = await req.repos.todos.remove(req.params.id);
       if (!removed) return res.status(404).json({ error: 'Todo not found' });
       return res.json({ success: true });
     })
   );
 
   // ---------- AI (Gemini) ----------
-  app.get(
-    '/api/ai/status',
-    wrap(async (req, res) => {
-      res.json({ configured: gemini.isConfigured(), model: gemini.getModel() });
-    })
-  );
-
   /**
    * Turns a topic or an uploaded file into notes + tasks and saves both.
    * The browser never sees the API key; Gemini is called server-side.
@@ -158,12 +207,12 @@ function createApp({ repos } = {}) {
       // order survives on the board ("first task" appears first).
       const notes = [];
       for (const note of [...plan.notes].reverse()) {
-        notes.push(await repos.notes.create(note));
+        notes.push(await req.repos.notes.create(note));
       }
 
       const tasks = [];
       for (const task of [...plan.tasks].reverse()) {
-        const result = await repos.todos.create(task);
+        const result = await req.repos.todos.create(task);
         if (result.ok) tasks.push(result.todo);
       }
 
@@ -215,28 +264,6 @@ function createApp({ repos } = {}) {
         return res.status(422).json({ error: 'Gemini returned an empty summary. Try again.' });
       }
       return res.json({ summary });
-    })
-  );
-
-  app.get(
-    '/api/health',
-    wrap(async (req, res) => {
-      try {
-        await db.ping();
-      } catch (error) {
-        console.error('Health check failed:', error.message);
-        return res.status(503).json({
-          status: 'degraded',
-          storage: 'mongodb',
-          error: 'Database unavailable',
-          timestamp: new Date().toISOString(),
-        });
-      }
-      return res.json({
-        status: 'ok',
-        storage: 'mongodb',
-        timestamp: new Date().toISOString(),
-      });
     })
   );
 

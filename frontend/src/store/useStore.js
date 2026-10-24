@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api } from '../api';
 import { advanceDueDate } from '../lib/format';
 import { showSystemNotification } from '../lib/notifications';
+import { supabase } from '../lib/supabase';
 
 // The app ships with a single light theme and a single brand color. Clear any
 // preference left behind by the old theme/accent switchers so it cannot
@@ -36,6 +37,48 @@ const initialPermission =
 
 const initialNotifyEnabled = readPreference('tdl.notify', 'on') !== 'off';
 
+// Supabase asks auth callbacks not to call back into its client synchronously.
+let authSubscription = null;
+
+const emptyWorkspace = {
+  notes: [],
+  todos: [],
+  loaded: false,
+  initializing: false,
+  syncing: false,
+  syncError: null,
+  activeView: 'notes',
+  selectedNoteId: null,
+  searchQuery: '',
+  commandPaletteOpen: false,
+  quickCaptureOpen: false,
+  quickCaptureType: 'note',
+  sidebarOpen: false,
+  aiPanelOpen: false,
+  aiPlannerOpen: false,
+  aiSummaryOpen: false,
+  exportOpen: false,
+};
+
+function authMessage(error) {
+  const message = error?.message || 'Something went wrong. Try again.';
+  if (/invalid login credentials/i.test(message)) return 'Incorrect email or password.';
+  if (/email not confirmed/i.test(message)) {
+    return 'Confirm your email first. Check your inbox for the link.';
+  }
+  if (/user already registered/i.test(message)) {
+    return 'An account with that email already exists. Sign in instead.';
+  }
+  if (/password should be at least/i.test(message)) {
+    return 'Use a password with at least 6 characters.';
+  }
+  if (/rate limit|too many/i.test(message)) {
+    return 'Too many attempts. Wait a minute and try again.';
+  }
+  return message;
+}
+
+
 export const useStore = create((set, get) => ({
   // ---- Data ----
   notes: [],
@@ -44,6 +87,15 @@ export const useStore = create((set, get) => ({
   initializing: false,
   syncing: false,
   syncError: null,
+
+  // ---- Auth ----
+  authReady: false,
+  authInitializing: false,
+  authBusy: false,
+  session: null,
+  user: null,
+  authError: null,
+  authNotice: null,
 
   // ---- UI state ----
   activeView: 'notes',
@@ -60,14 +112,186 @@ export const useStore = create((set, get) => ({
   notifyEnabled: initialNotifyEnabled,
   notificationPermission: initialPermission,
 
+  // ---- Auth ----
+  initAuth: async () => {
+    if (authSubscription) return;
+
+    if (!supabase) {
+      set({
+        authReady: true,
+        authInitializing: false,
+        authError:
+          'Authentication is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to frontend/.env, then restart the dev server.',
+      });
+      return;
+    }
+
+    set({ authInitializing: true });
+
+    try {
+      authSubscription = supabase.auth.onAuthStateChange((event, session) => {
+        const previousUserId = get().user?.id;
+        const nextUser = session?.user ?? null;
+
+        set({
+          session: session ?? null,
+          user: nextUser,
+          authReady: true,
+          authInitializing: false,
+        });
+
+        if (!session) {
+          set({ ...emptyWorkspace, authBusy: false });
+          return;
+        }
+
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
+
+        const switchedUser = previousUserId && previousUserId !== nextUser?.id;
+        if (switchedUser) {
+          set({ notes: [], todos: [], loaded: false, selectedNoteId: null });
+        }
+
+        const needsLoad = !get().loaded || switchedUser;
+        if (needsLoad) {
+          // Defer so we never re-enter Supabase while it is applying auth state.
+          setTimeout(() => get().init(), 0);
+        }
+      });
+    } catch (error) {
+      set({
+        authReady: true,
+        authInitializing: false,
+        authError: authMessage(error),
+      });
+      return;
+    }
+
+    // Older auth-js versions may not emit INITIAL_SESSION; this is a fallback.
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!get().authReady) {
+        const session = data.session ?? null;
+        set({
+          session,
+          user: session?.user ?? null,
+          authReady: true,
+          authInitializing: false,
+        });
+        if (session) get().init();
+      }
+    } catch (error) {
+      set({
+        authReady: true,
+        authInitializing: false,
+        authError: authMessage(error),
+      });
+    }
+  },
+
+  signIn: async (email, password) => {
+    if (!supabase) {
+      const message = 'Authentication is not configured.';
+      set({ authError: message });
+      return { error: { message } };
+    }
+
+    set({ authBusy: true, authError: null, authNotice: null });
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        set({ authBusy: false, authError: authMessage(error) });
+        return { error };
+      }
+      set({ authBusy: false });
+      return { error: null };
+    } catch (error) {
+      set({ authBusy: false, authError: authMessage(error) });
+      return { error };
+    }
+  },
+
+  signUp: async (email, password) => {
+    if (!supabase) {
+      const message = 'Authentication is not configured.';
+      set({ authError: message });
+      return { error: { message } };
+    }
+
+    set({ authBusy: true, authError: null, authNotice: null });
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: window.location.origin },
+      });
+
+      if (error) {
+        set({ authBusy: false, authError: authMessage(error) });
+        return { error };
+      }
+
+      set({ authBusy: false });
+
+      if (!data.session) {
+        set({
+          authNotice:
+            'Account created. Check your email for the confirmation link, then sign in.',
+        });
+        return { error: null, needsConfirmation: true };
+      }
+
+      return { error: null, needsConfirmation: false };
+    } catch (error) {
+      set({ authBusy: false, authError: authMessage(error) });
+      return { error };
+    }
+  },
+
+  signOut: async () => {
+    set({ authBusy: true });
+    try {
+      if (supabase) await supabase.auth.signOut();
+    } catch {
+      /* clear locally even if the network call fails */
+    }
+    set({
+      ...emptyWorkspace,
+      session: null,
+      user: null,
+      authBusy: false,
+      authReady: true,
+      authError: null,
+      authNotice: null,
+    });
+  },
+
+  clearAuthMessages: () => set({ authError: null, authNotice: null }),
+
   // ---- Init ----
   init: async () => {
     if (get().initializing) return;
+    if (!get().session) return;
+
+    const userId = get().user?.id;
     set({ initializing: true });
     try {
       const [notes, todos] = await Promise.all([api.getNotes(), api.getTodos()]);
+      // A sign-out or account switch may have happened while the request was in flight.
+      if (get().user?.id !== userId) {
+        set({ initializing: false });
+        return;
+      }
       set({ notes, todos, loaded: true, initializing: false, syncError: null });
     } catch (err) {
+      if (get().user?.id !== userId) {
+        set({ initializing: false });
+        return;
+      }
       set({
         loaded: true,
         initializing: false,

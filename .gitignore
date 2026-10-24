@@ -43,7 +43,7 @@ coverage/
 playwright-report/
 test-results/
 
-# ---------- Local note data and import backups (now stored in MongoDB) ----------
+# ---------- Local note data and legacy import files ----------
 backend/data/
 
 # ---------- Operating system files ----------

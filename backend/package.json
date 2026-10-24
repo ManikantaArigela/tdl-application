@@ -7,15 +7,11 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
     "dev": "node --env-file-if-exists=.env --watch server.js",
-    "test": "node --test --test-concurrency=1",
-    "import": "node --env-file-if-exists=.env scripts/import-json.js"
+    "test": "node --test --test-concurrency=1"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "mongoose": "^8.24.6"
-  },
-  "devDependencies": {
-    "mongodb-memory-server": "^10.4.3"
+    "express": "^4.18.2"
   }
 }

@@ -2,35 +2,35 @@ const { test, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createApp } = require('../app');
-const repos = require('../repositories');
-const mongo = require('../test-utils/mongo');
+const memory = require('../test-utils/memory-repos');
 
 let server;
 let baseUrl;
 
-before(
-  async () => {
-    await mongo.start();
-    const app = createApp({ repos });
-    await new Promise((resolve) => {
-      server = app.listen(0, '127.0.0.1', resolve);
-    });
-    const { port } = server.address();
-    baseUrl = `http://127.0.0.1:${port}`;
-  },
-  { timeout: 180_000 }
-);
+before(async () => {
+  const app = createApp({
+    createRepos: () => memory.repos,
+    authenticate: (req, res, next) => {
+      req.userId = 'test-user';
+      req.user = { id: 'test-user', email: 'test@example.com' };
+      req.supabase = {};
+      next();
+    },
+    checkDatabase: async () => true,
+  });
+  await new Promise((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
+  const { port } = server.address();
+  baseUrl = `http://127.0.0.1:${port}`;
+});
 
-after(
-  async () => {
-    if (server) await new Promise((resolve) => server.close(resolve));
-    await mongo.stop();
-  },
-  { timeout: 60_000 }
-);
+after(async () => {
+  if (server) await new Promise((resolve) => server.close(resolve));
+});
 
-beforeEach(async () => {
-  await mongo.reset();
+beforeEach(() => {
+  memory.reset();
 });
 
 async function request(pathname, options = {}) {
@@ -44,11 +44,11 @@ async function request(pathname, options = {}) {
 
 const json = (payload) => ({ body: JSON.stringify(payload) });
 
-test('health reports the MongoDB storage backend', async () => {
+test('health reports the Supabase storage backend', async () => {
   const { response, body } = await request('/api/health');
   assert.equal(response.status, 200);
   assert.equal(body.status, 'ok');
-  assert.equal(body.storage, 'mongodb');
+  assert.equal(body.storage, 'supabase');
   assert.ok(body.timestamp);
 });
 
@@ -198,6 +198,33 @@ test('unknown API routes and unknown ids return JSON 404s', async () => {
   });
   assert.equal(note.response.status, 404);
   assert.equal(note.body.error, 'Note not found');
+});
+
+test('protected routes require authentication', async () => {
+  const app = createApp({
+    createRepos: () => memory.repos,
+    authenticate: (req, res) => res.status(401).json({ error: 'Sign in to continue.' }),
+    checkDatabase: async () => true,
+  });
+
+  const authServer = await new Promise((resolve) => {
+    const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+  });
+  const port = authServer.address().port;
+
+  try {
+    const notes = await fetch(`http://127.0.0.1:${port}/api/notes`);
+    assert.equal(notes.status, 401);
+    assert.equal((await notes.json()).error, 'Sign in to continue.');
+
+    const todos = await fetch(`http://127.0.0.1:${port}/api/todos`);
+    assert.equal(todos.status, 401);
+
+    const health = await fetch(`http://127.0.0.1:${port}/api/health`);
+    assert.equal(health.status, 200);
+  } finally {
+    await new Promise((resolve) => authServer.close(resolve));
+  }
 });
 
 test('malformed JSON returns a 400 instead of crashing', async () => {

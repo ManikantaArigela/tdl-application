@@ -1,38 +1,55 @@
 /**
  * Contract shape guard.
  *
- * The repository layer maps Mongo documents back to the exact key set and value
- * types the JSON store produced. These assertions fail loudly if a DTO change
- * ever leaks a Date, an ObjectId, or a new field into the API.
+ * The repository layer maps Supabase rows back to the exact key set and value
+ * types the JSON store has always produced. These assertions fail loudly if a
+ * DTO change ever leaks a snake_case column, a Date, or a new field.
  */
-const { test, before, after } = require('node:test');
+const { test, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createApp } = require('../app');
-const repos = require('../repositories');
-const mongo = require('../test-utils/mongo');
+const memory = require('../test-utils/memory-repos');
 
 let server;
 let baseUrl;
 
 const NOTE_KEYS = ['id', 'title', 'content', 'tags', 'pinned', 'archived', 'createdAt', 'updatedAt'];
-const TODO_KEYS = ['id', 'text', 'priority', 'completed', 'dueDate', 'dueTime', 'repeat', 'completedAt', 'createdAt'];
+const TODO_KEYS = [
+  'id',
+  'text',
+  'priority',
+  'completed',
+  'dueDate',
+  'dueTime',
+  'repeat',
+  'completedAt',
+  'createdAt',
+];
 
-before(
-  async () => {
-    await mongo.start();
-    const app = createApp({ repos });
-    await new Promise((resolve) => {
-      server = app.listen(0, '127.0.0.1', resolve);
-    });
-    baseUrl = `http://127.0.0.1:${server.address().port}`;
-  },
-  { timeout: 180_000 }
-);
+before(async () => {
+  const app = createApp({
+    createRepos: () => memory.repos,
+    authenticate: (req, res, next) => {
+      req.userId = 'test-user';
+      req.user = { id: 'test-user' };
+      req.supabase = {};
+      next();
+    },
+    checkDatabase: async () => true,
+  });
+  await new Promise((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
+  baseUrl = `http://127.0.0.1:${server.address().port}`;
+});
 
 after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
-  await mongo.stop();
+});
+
+beforeEach(() => {
+  memory.reset();
 });
 
 const post = (path, body) =>
@@ -56,7 +73,8 @@ test('note responses keep the exact legacy shape', async () => {
   assert.equal(typeof note.updatedAt, 'number');
   // No storage leakage.
   assert.equal(note._id, undefined);
-  assert.equal(note.__v, undefined);
+  assert.equal(note.user_id, undefined);
+  assert.equal(note.created_at, undefined);
 });
 
 test('todo responses keep the exact legacy shape', async () => {
@@ -72,6 +90,7 @@ test('todo responses keep the exact legacy shape', async () => {
   assert.equal(typeof todo.createdAt, 'number');
   assert.equal(todo._id, undefined);
   assert.equal(todo.order, undefined);
+  assert.equal(todo.sort_order, undefined);
 });
 
 test('completion keeps completedAt as a number and dueDate as a string', async () => {

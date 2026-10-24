@@ -19,7 +19,16 @@ before(async () => {
     notes: { create: async (note) => note },
     todos: { create: async (todo) => ({ ok: true, todo }) },
   };
-  const app = createApp({ repos });
+  const app = createApp({
+    createRepos: () => repos,
+    authenticate: (req, res, next) => {
+      req.userId = 'test-user';
+      req.user = { id: 'test-user' };
+      req.supabase = {};
+      next();
+    },
+    checkDatabase: async () => true,
+  });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
   });
