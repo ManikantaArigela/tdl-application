@@ -23,12 +23,18 @@ export function registerNotificationWorker() {
 export async function showSystemNotification(title, options = {}) {
   if (typeof window === 'undefined') return false;
 
+  const payload = {
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    ...options,
+  };
+
   try {
     const registration =
       (await navigator.serviceWorker?.getRegistration?.()) ??
       (await registerNotificationWorker());
     if (registration?.showNotification) {
-      await registration.showNotification(title, options);
+      await registration.showNotification(title, payload);
       return true;
     }
   } catch {
@@ -37,7 +43,7 @@ export async function showSystemNotification(title, options = {}) {
 
   try {
     if ('Notification' in window) {
-      new window.Notification(title, options);
+      new window.Notification(title, payload);
       return true;
     }
   } catch {

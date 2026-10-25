@@ -3,11 +3,30 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowUpRight, ArchiveRestore, Clock, Pin, Star, Tag, Trash2 } from 'lucide-react';
 import { relativeTime } from '../lib/format';
 
-export default function TiltNoteCard({ note, onSelect, onDelete, onPin, onArchive, archived = false }) {
+export default function TiltNoteCard({
+  note,
+  index = 0,
+  onSelect,
+  onDelete,
+  onPin,
+  onArchive,
+  archived = false,
+}) {
   const reduceMotion = useReducedMotion();
 
   const tags = (note.tags ?? []).filter(Boolean).slice(0, 3);
   const extraTags = Math.max((note.tags ?? []).filter(Boolean).length - tags.length, 0);
+
+  const accentTones = [
+    'from-accent via-pop-pink to-pop-yellow',
+    'from-pop-yellow via-pop-pink to-accent',
+    'from-pop-pink via-accent to-pop-yellow',
+  ];
+  const accentTone =
+    accentTones[
+      (String(note.id || note.title || 'note').charCodeAt(0) + (note.title?.length ?? 0)) %
+        accentTones.length
+    ];
 
   return (
     <motion.article
@@ -15,13 +34,24 @@ export default function TiltNoteCard({ note, onSelect, onDelete, onPin, onArchiv
       initial={reduceMotion ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
-      transition={{ type: 'spring', stiffness: 260, damping: 28, mass: 0.7 }}
-      className="panel-raised group relative overflow-hidden rounded-2xl p-5 transition-[border-color,box-shadow] duration-200 hover:border-accent/35 hover:shadow-lift"
+      whileHover={reduceMotion ? undefined : { y: -3 }}
+      transition={{
+        type: 'spring',
+        stiffness: 260,
+        damping: 28,
+        mass: 0.7,
+        delay: reduceMotion ? 0 : Math.min(index * 0.04, 0.24),
+      }}
+      className="panel-raised group relative overflow-hidden rounded-[1.25rem] p-5 transition-[border-color,box-shadow] duration-200 hover:border-accent/35 hover:shadow-lift"
     >
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accentTone}`}
+      />
       <button
         type="button"
         onClick={() => onSelect(note.id)}
-        className="absolute inset-0 z-0 rounded-2xl"
+        className="absolute inset-0 z-0 rounded-[1.25rem]"
         aria-label={`Open note: ${note.title || 'Untitled'}`}
       />
 
@@ -72,7 +102,7 @@ export default function TiltNoteCard({ note, onSelect, onDelete, onPin, onArchiv
             </div>
           </div>
 
-          <h3 className="line-clamp-2 font-display text-xl leading-snug text-ink">
+          <h3 className="line-clamp-2 font-display text-xl font-semibold leading-snug tracking-[-0.03em] text-ink">
             {note.title || 'Untitled'}
           </h3>
 

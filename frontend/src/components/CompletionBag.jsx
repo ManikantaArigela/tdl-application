@@ -44,7 +44,7 @@ export default function CompletionBag({
         <div>
           <h3
             id="completed-heading"
-            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted"
+            className="flex items-center gap-1.5 text-xs font-semibold text-muted"
           >
             <CheckCircle2 className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
             Completed
@@ -64,10 +64,10 @@ export default function CompletionBag({
           className="absolute inset-x-0 bottom-0 transition-[height] duration-700 ease-out"
           style={{ height: `${level}%` }}
         >
-          <div className="absolute inset-0 bg-gradient-to-t from-accent/55 via-accent/40 to-accent/25" />
+          <div className="absolute inset-0 bg-gradient-to-t from-accent/55 via-accent/35 to-pop-pink/30" />
 
-          <Wave className="-top-2 animate-wave-slow text-accent/30" />
-          <Wave className="-top-1 animate-wave text-accent/45" />
+          <Wave className="-top-2 animate-wave-slow text-pop-pink/30" />
+          <Wave className="-top-1 animate-wave text-accent/40" />
 
           {!reduceMotion &&
             level > 0 &&
@@ -85,10 +85,10 @@ export default function CompletionBag({
         </div>
 
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="rounded-full bg-panel/75 px-3 py-1 font-display text-3xl leading-none text-ink shadow-panel backdrop-blur-sm tabular-nums">
+          <span className="rounded-full bg-panel/80 px-3 py-1 font-display text-3xl font-bold leading-none tracking-[-0.05em] text-ink shadow-panel backdrop-blur-sm tabular-nums">
             {pct}%
           </span>
-          <span className="mt-1.5 rounded-full bg-panel/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-muted backdrop-blur-sm">
+          <span className="mt-1.5 rounded-full bg-panel/65 px-2 py-0.5 text-[10px] font-semibold text-muted backdrop-blur-sm">
             completion rate
           </span>
         </div>

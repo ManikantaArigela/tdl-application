@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   ClipboardCopy,
+  Crown,
   FilePlus2,
   Loader2,
   ScrollText,
@@ -12,6 +13,7 @@ import {
 import { api } from '../api';
 import { useStore } from '../store/useStore';
 import { formatDate, plural } from '../lib/format';
+import { formatLimit, getPlan, getPlanLimits } from '../lib/plans';
 
 export default function AISummaryDialog() {
   const setOpen = useStore((s) => s.setAISummaryOpen);
@@ -19,6 +21,10 @@ export default function AISummaryDialog() {
   const addNote = useStore((s) => s.addNote);
   const selectNote = useStore((s) => s.selectNote);
   const setActiveView = useStore((s) => s.setActiveView);
+  const plan = useStore((s) => s.plan);
+  const planUsage = useStore((s) => s.planUsage);
+  const recordAIUse = useStore((s) => s.recordAIUse);
+  const setPlanDialogOpen = useStore((s) => s.setPlanDialogOpen);
 
   const [status, setStatus] = React.useState('idle');
   const [summary, setSummary] = React.useState('');
@@ -38,9 +44,25 @@ export default function AISummaryDialog() {
   );
 
   const close = () => setOpen(false);
+  const planInfo = getPlan(plan);
+  const noteLimits = getPlanLimits(plan);
+  const noteRemaining = Math.max(noteLimits.notes - planUsage.notes, 0);
 
   const generate = React.useCallback(async () => {
     if (source.length === 0) return;
+
+    const limits = getPlanLimits(plan);
+    const planInfo = getPlan(plan);
+    if (planUsage.notes >= limits.notes) {
+      setStatus('error');
+      setError(
+        `Your ${planInfo.name} plan includes ${formatLimit(
+          limits.notes
+        )} AI note actions each month, and they are all used. Upgrade to keep creating study briefs.`
+      );
+      return;
+    }
+
     setStatus('loading');
     setError('');
     setSummary('');
@@ -48,6 +70,7 @@ export default function AISummaryDialog() {
       const response = await api.summarizeNotes({ notes: source });
       setSummary(response.summary ?? '');
       setStatus('done');
+      recordAIUse('notes');
     } catch (err) {
       const message = err.message || 'Could not summarize your notes.';
       setError(
@@ -57,7 +80,7 @@ export default function AISummaryDialog() {
       );
       setStatus('error');
     }
-  }, [source]);
+  }, [source, plan, planUsage.notes, recordAIUse]);
 
   React.useEffect(() => {
     if (source.length > 0) generate();
@@ -120,7 +143,14 @@ export default function AISummaryDialog() {
                 Study brief
               </h2>
               <p className="text-xs text-muted">
-                {source.length} {plural(source.length, 'note')} summarized by Gemini
+                {source.length} {plural(source.length, 'note')} summarized by Gemini · {planInfo.name}{' '}
+                plan
+              </p>
+              <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-faint">
+                <Crown className="h-3 w-3" aria-hidden="true" />
+                {noteLimits.notes === Infinity
+                  ? 'Unlimited AI actions'
+                  : `${noteRemaining} of ${formatLimit(noteLimits.notes)} AI actions left`}
               </p>
             </div>
           </div>
@@ -148,13 +178,26 @@ export default function AISummaryDialog() {
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <div>
                 <p>{error}</p>
-                <button
-                  type="button"
-                  onClick={generate}
-                  className="mt-2 font-medium underline underline-offset-2"
-                >
-                  Try again
-                </button>
+                {/includes .* AI note actions|Upgrade/i.test(error) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      setPlanDialogOpen(true);
+                    }}
+                    className="mt-2 font-medium underline underline-offset-2"
+                  >
+                    See plans
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={generate}
+                    className="mt-2 font-medium underline underline-offset-2"
+                  >
+                    Try again
+                  </button>
+                )}
               </div>
             </div>
           )}

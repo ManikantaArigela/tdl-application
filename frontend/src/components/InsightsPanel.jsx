@@ -122,7 +122,7 @@ export default function InsightsPanel() {
             ].map((stat) => (
               <div key={stat.label} className="rounded-xl border border-line bg-raised p-3">
                 <dt className="text-[11px] text-muted">{stat.label}</dt>
-                <dd className="mt-1 font-display text-xl text-ink">{stat.value}</dd>
+                <dd className="mt-1 font-display text-xl font-bold tracking-[-0.04em] text-ink">{stat.value}</dd>
               </div>
             ))}
           </dl>

@@ -318,7 +318,7 @@ export default function TodoList({ scope = 'all' }) {
             <div>
               <h3
                 id="open-tasks-heading"
-                className="text-xs font-semibold uppercase tracking-[0.14em] text-muted"
+                className="text-xs font-semibold text-muted"
               >
                 {scope === 'today' ? 'Due today' : 'Open tasks'} ({visibleOpen.length})
               </h3>
@@ -333,7 +333,7 @@ export default function TodoList({ scope = 'all' }) {
             </div>
 
             <div className="flex items-center gap-2">
-              <label htmlFor="todo-sort" className="text-[11px] uppercase tracking-[0.12em] text-faint">
+              <label htmlFor="todo-sort" className="text-[11px] font-medium text-faint">
                 Sort
               </label>
               <select

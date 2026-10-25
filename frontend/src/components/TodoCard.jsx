@@ -95,7 +95,7 @@ export default function TodoCard({
       onDragStart={() => onDragStart?.(todo)}
       onDrag={(event) => onDrag?.(event, todo)}
       onDragEnd={(event) => onDragEnd?.(event, todo)}
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-panel transition-[border-color,box-shadow] duration-200 hover:border-accent/30 hover:shadow-lift ${
+      className={`group relative flex h-full flex-col overflow-hidden rounded-[1.25rem] border border-line bg-panel shadow-panel transition-[border-color,box-shadow] duration-200 hover:border-accent/30 hover:shadow-lift ${
         canDrag ? 'cursor-grab select-none active:cursor-grabbing' : ''
       } ${isDragging ? 'z-30 cursor-grabbing shadow-lift ring-2 ring-accent/40' : ''}`}
     >

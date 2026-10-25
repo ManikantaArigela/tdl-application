@@ -1,9 +1,11 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import {
   Archive,
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  Crown,
   Download,
   LayoutGrid,
   Loader2,
@@ -14,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { plural } from '../lib/format';
+import { getPlan } from '../lib/plans';
+import Brand from './Brand';
 
 export default function Sidebar() {
   const activeView = useStore((s) => s.activeView);
@@ -25,6 +29,9 @@ export default function Sidebar() {
   const user = useStore((s) => s.user);
   const signOut = useStore((s) => s.signOut);
   const authBusy = useStore((s) => s.authBusy);
+  const plan = useStore((s) => s.plan);
+  const setPlanDialogOpen = useStore((s) => s.setPlanDialogOpen);
+  const planName = getPlan(plan).name;
 
   const notes = useStore((s) => s.notes);
   const todos = useStore((s) => s.todos);
@@ -77,22 +84,12 @@ export default function Sidebar() {
 
       <aside
         aria-label="Primary"
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-line bg-panel transition-transform duration-200 ease-standard md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-line bg-panel/95 backdrop-blur-xl transition-transform duration-200 ease-standard md:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex items-center justify-between px-5 py-5">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-accent-fg"
-              aria-hidden="true"
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="font-display text-xl leading-none text-ink">TDL</span>
-          </div>
+          <Brand size="md" />
           <button
             type="button"
             className="icon-btn md:hidden"
@@ -103,7 +100,7 @@ export default function Sidebar() {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 px-3 py-2" aria-label="Views">
+        <nav className="flex-1 space-y-1 px-3 py-2" aria-label="Views">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;
@@ -113,12 +110,20 @@ export default function Sidebar() {
                 type="button"
                 onClick={() => selectView(item.id)}
                 aria-current={isActive ? 'page' : undefined}
-                className={`nav-item ${isActive ? 'nav-item-active' : ''}`}
+                className={`nav-item relative ${isActive ? 'nav-item-active' : ''}`}
               >
-                <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                <span className="flex-1 text-left">{item.label}</span>
+                {isActive && (
+                  <motion.span
+                    layoutId="sidebar-active"
+                    className="absolute inset-0 rounded-xl bg-accent/10"
+                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                    aria-hidden="true"
+                  />
+                )}
+                <Icon className="relative h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                <span className="relative flex-1 text-left">{item.label}</span>
                 {typeof item.count === 'number' && item.count > 0 && (
-                  <span className="font-mono text-[11px] text-faint">{item.count}</span>
+                  <span className="relative font-mono text-[11px] text-faint">{item.count}</span>
                 )}
               </button>
             );
@@ -130,11 +135,25 @@ export default function Sidebar() {
             type="button"
             className="nav-item"
             onClick={() => {
+              setPlanDialogOpen(true);
+              setSidebarOpen(false);
+            }}
+          >
+            <Crown className="h-[18px] w-[18px] text-pop-pink" aria-hidden="true" />
+            <span className="flex-1 text-left">Plans</span>
+            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
+              {planName}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="nav-item"
+            onClick={() => {
               setAIPlannerOpen(true);
               setSidebarOpen(false);
             }}
           >
-            <Wand2 className="h-[18px] w-[18px]" aria-hidden="true" />
+            <Wand2 className="h-[18px] w-[18px] text-accent" aria-hidden="true" />
             AI planner
           </button>
           <button
@@ -158,9 +177,9 @@ export default function Sidebar() {
             </span>
           </div>
 
-          <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-line bg-raised/60 px-3 py-2">
+          <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-line bg-raised/70 px-3 py-2.5">
             <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold uppercase text-accent"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-pop-pink text-xs font-bold uppercase text-white"
               aria-hidden="true"
             >
               {(user?.email || '?').charAt(0)}
@@ -169,7 +188,7 @@ export default function Sidebar() {
               <p className="truncate text-xs font-medium text-ink" title={user?.email || ''}>
                 {user?.email || 'Signed in'}
               </p>
-              <p className="text-[10px] text-faint">Private workspace</p>
+              <p className="text-[10px] text-faint">{planName} plan · Private workspace</p>
             </div>
             <button
               type="button"

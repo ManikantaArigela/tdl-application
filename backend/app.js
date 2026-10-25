@@ -116,7 +116,11 @@ function createApp({
   app.get(
     '/api/ai/status',
     wrap(async (req, res) => {
-      res.json({ configured: gemini.isConfigured(), model: gemini.getModel() });
+      res.json({
+        configured: gemini.isConfigured(),
+        model: gemini.getModel(),
+        fallbackModel: gemini.getFallbackModel(),
+      });
     })
   );
 
@@ -390,7 +394,11 @@ function createApp({
     const { status, body } = mapError(error);
     if (status >= 500 && error.status) {
       // Expected service failures (e.g. Gemini) get a concise line, not a stack.
-      console.error(`API error ${status}: ${error.message}`);
+      const detail =
+        error.providerMessage && error.providerMessage !== error.message
+          ? `${error.message} (${error.providerMessage})`
+          : error.message;
+      console.error(`API error ${status}: ${detail}`);
     } else if (status >= 500) {
       console.error(error);
     }

@@ -51,7 +51,9 @@ function mapError(error) {
 
   // Services (Gemini, auth) attach an HTTP status a client can act on.
   if (Number.isInteger(error.status) && error.status >= 400 && error.status < 600) {
-    return { status: error.status, body: { error: error.message || 'Request failed' } };
+    const body = { error: error.message || 'Request failed' };
+    if (error.retryable) body.retryable = true;
+    return { status: error.status, body };
   }
 
   return { status: 500, body: { error: 'Internal server error' } };

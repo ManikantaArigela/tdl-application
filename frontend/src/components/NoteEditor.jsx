@@ -4,6 +4,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
+  Crown,
   Loader2,
   Pin,
   Save,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { formatDateTime, plural } from '../lib/format';
+import { formatLimit, getPlan, getPlanLimits } from '../lib/plans';
 import { api } from '../api';
 
 const AUTOSAVE_MS = 700;
@@ -24,6 +26,10 @@ export default function NoteEditor({ note }) {
   const togglePin = useStore((s) => s.togglePin);
   const toggleArchive = useStore((s) => s.toggleArchive);
   const selectNote = useStore((s) => s.selectNote);
+  const plan = useStore((s) => s.plan);
+  const planUsage = useStore((s) => s.planUsage);
+  const recordAIUse = useStore((s) => s.recordAIUse);
+  const setPlanDialogOpen = useStore((s) => s.setPlanDialogOpen);
 
   const [title, setTitle] = React.useState(note.title ?? '');
   const [content, setContent] = React.useState(note.content ?? '');
@@ -120,12 +126,25 @@ export default function NoteEditor({ note }) {
       return;
     }
 
+    const limits = getPlanLimits(plan);
+    const planInfo = getPlan(plan);
+    if (planUsage.notes >= limits.notes) {
+      setAiStatus('error');
+      setAiError(
+        `Your ${planInfo.name} plan includes ${formatLimit(
+          limits.notes
+        )} AI note actions each month, and they are all used. Upgrade to keep using AI on notes.`
+      );
+      return;
+    }
+
     try {
       const payload = { title: title.trim() || 'Untitled', content };
       const response =
         mode === 'enhance' ? await api.enhanceNote(payload) : await api.summarizeNotes(payload);
       setAiResult(mode === 'enhance' ? response.content : response.summary);
       setAiStatus('done');
+      recordAIUse('notes');
     } catch (err) {
       const message = err.message || 'Gemini could not process this note.';
       setAiError(
@@ -157,6 +176,9 @@ export default function NoteEditor({ note }) {
   };
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const noteLimits = getPlanLimits(plan);
+  const notePlan = getPlan(plan);
+  const noteRemaining = Math.max(noteLimits.notes - planUsage.notes, 0);
 
   const statusLabel =
     status === 'saving'
@@ -233,7 +255,7 @@ export default function NoteEditor({ note }) {
         }}
         placeholder="Untitled note"
         aria-label="Note title"
-        className="w-full bg-transparent font-display text-3xl leading-tight text-ink outline-none placeholder:text-faint md:text-4xl"
+        className="w-full bg-transparent font-display text-3xl font-semibold leading-tight tracking-[-0.045em] text-ink outline-none placeholder:text-faint md:text-4xl"
       />
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-faint">
@@ -273,8 +295,12 @@ export default function NoteEditor({ note }) {
           )}
           Summarize
         </button>
-        <span className="hidden text-[11px] text-faint sm:inline">
-          Gemini can structure and condense your notes.
+        <span className="inline-flex items-center gap-1 text-[11px] text-faint">
+          <Crown className="h-3 w-3" aria-hidden="true" />
+          {notePlan.name}
+          {noteLimits.notes === Infinity
+            ? ' · Unlimited AI actions'
+            : ` · ${noteRemaining} of ${formatLimit(noteLimits.notes)} AI actions left`}
         </span>
       </div>
 
@@ -327,13 +353,23 @@ export default function NoteEditor({ note }) {
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <p>
                 {aiError}{' '}
-                <button
-                  type="button"
-                  onClick={() => runAI(aiMode)}
-                  className="font-medium underline underline-offset-2"
-                >
-                  Retry
-                </button>
+                {/includes .* AI note actions|Upgrade/i.test(aiError) ? (
+                  <button
+                    type="button"
+                    onClick={() => setPlanDialogOpen(true)}
+                    className="font-medium underline underline-offset-2"
+                  >
+                    See plans
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => runAI(aiMode)}
+                    className="font-medium underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                )}
               </p>
             </div>
           )}

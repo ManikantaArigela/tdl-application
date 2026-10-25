@@ -26,7 +26,7 @@ export default function CarryOverBox({
         <div>
           <h3
             id="carried-heading"
-            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted"
+            className="flex items-center gap-1.5 text-xs font-semibold text-muted"
           >
             <Inbox className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
             Carried over

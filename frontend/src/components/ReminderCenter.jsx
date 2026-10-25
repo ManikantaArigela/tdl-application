@@ -71,9 +71,11 @@ export default function ReminderCenter() {
         if (todo.completed || !todo.dueDate) continue;
         const ts = dueTimestamp(todo);
         if (ts === null) continue;
-        // Date-only tasks stay eligible later into the day.
+        // Date-only tasks become eligible at 9:00 and stay eligible through the
+        // day; timed tasks get a short run-up before the due moment.
+        const before = todo.dueTime ? WINDOW_BEFORE_MS : 0;
         const after = todo.dueTime ? WINDOW_AFTER_MS : DATE_ONLY_AFTER_MS;
-        if (now < ts - WINDOW_BEFORE_MS || now > ts + after) continue;
+        if (now < ts - before || now > ts + after) continue;
 
         const key = `${todo.id}:${todo.dueDate}:${todo.dueTime ?? ''}`;
         if (fired[key]) continue;
@@ -148,7 +150,7 @@ export default function ReminderCenter() {
               <BellRing className="h-4 w-4" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-warning">
+              <p className="text-xs font-semibold text-warning">
                 Task due
               </p>
               <p className="mt-0.5 line-clamp-2 text-sm leading-snug text-ink">{reminder.text}</p>

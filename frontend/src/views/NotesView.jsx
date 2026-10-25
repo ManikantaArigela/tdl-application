@@ -54,10 +54,11 @@ export default function NotesView({ starred = false, archive = false } = {}) {
 
   const renderGrid = (items) => (
     <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {items.map((note) => (
+      {items.map((note, index) => (
         <TiltNoteCard
           key={note.id}
           note={note}
+          index={index}
           archived={archive}
           onSelect={selectNote}
           onDelete={deleteNote}
@@ -72,7 +73,7 @@ export default function NotesView({ starred = false, archive = false } = {}) {
     <section aria-labelledby="notes-heading">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="notes-heading" className="text-3xl text-ink">
+          <h2 id="notes-heading" className="text-3xl font-semibold tracking-[-0.045em] text-ink sm:text-4xl">
             {heading}
           </h2>
           <p className="mt-1 text-sm text-muted">
@@ -99,11 +100,13 @@ export default function NotesView({ starred = false, archive = false } = {}) {
 
       {list.length === 0 ? (
         <div className="panel flex flex-col items-center px-6 py-16 text-center">
-          {searching ? (
-            <SearchX className="h-8 w-8 text-faint" aria-hidden="true" />
-          ) : (
-            <StickyNote className="h-8 w-8 text-faint" aria-hidden="true" />
-          )}
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-lavender text-accent">
+            {searching ? (
+              <SearchX className="h-6 w-6" aria-hidden="true" />
+            ) : (
+              <StickyNote className="h-6 w-6" aria-hidden="true" />
+            )}
+          </span>
           <h3 className="mt-4 text-xl text-ink">
             {searching ? 'No notes match that search' : archive ? 'Nothing archived' : 'No notes yet'}
           </h3>

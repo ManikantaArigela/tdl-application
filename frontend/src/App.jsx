@@ -17,6 +17,9 @@ import ReminderCenter from './components/ReminderCenter';
 import AIPlannerDialog from './components/AIPlannerDialog';
 import AISummaryDialog from './components/AISummaryDialog';
 import AuthScreen from './components/AuthScreen';
+import LandingPage from './components/LandingPage';
+import Brand from './components/Brand';
+import PlanDialog from './components/PlanDialog';
 
 // Three.js is only needed for the ambient canvas, so keep it out of the initial bundle.
 const AmbientBackground = React.lazy(() => import('./components/AmbientBackground'));
@@ -58,23 +61,12 @@ class ErrorBoundary extends React.Component {
 
 function LoadingScreen() {
   return (
-    <div className="min-h-dvh bg-canvas px-6 py-16">
-      <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-10">
-          <div className="skeleton h-3 w-24" />
-          <div className="skeleton mt-4 h-9 w-64" />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="panel h-44 p-5">
-              <div className="skeleton h-4 w-1/3" />
-              <div className="skeleton mt-4 h-6 w-3/4" />
-              <div className="skeleton mt-3 h-3 w-full" />
-              <div className="skeleton mt-2 h-3 w-5/6" />
-            </div>
-          ))}
-        </div>
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-canvas p-6">
+      <Brand size="lg" />
+      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-line">
+        <div className="h-full w-1/2 animate-pulse rounded-full bg-accent" />
       </div>
+      <p className="text-xs font-medium text-faint">Opening your workspace…</p>
     </div>
   );
 }
@@ -86,19 +78,39 @@ export default function App() {
   const loaded = useStore((s) => s.loaded);
   const authReady = useStore((s) => s.authReady);
   const session = useStore((s) => s.session);
+  const authError = useStore((s) => s.authError);
   const syncError = useStore((s) => s.syncError);
+  const [authScreenOpen, setAuthScreenOpen] = React.useState(false);
+  const [authMode, setAuthMode] = React.useState('signin');
   const commandPaletteOpen = useStore((s) => s.commandPaletteOpen);
   const quickCaptureOpen = useStore((s) => s.quickCaptureOpen);
   const aiPanelOpen = useStore((s) => s.aiPanelOpen);
   const aiPlannerOpen = useStore((s) => s.aiPlannerOpen);
   const aiSummaryOpen = useStore((s) => s.aiSummaryOpen);
   const exportOpen = useStore((s) => s.exportOpen);
+  const planDialogOpen = useStore((s) => s.planDialogOpen);
+  const sidebarOpen = useStore((s) => s.sidebarOpen);
 
   const note = selectedNoteId ? notes.find((n) => n.id === selectedNoteId) : null;
 
   React.useEffect(() => {
     useStore.getState().initAuth();
   }, []);
+
+  // Close the auth screen when an account is active, and return to the landing
+  // page after sign-out.
+  React.useEffect(() => {
+    if (session) {
+      setAuthScreenOpen(false);
+      setAuthMode('signin');
+    }
+  }, [session]);
+
+  // An expired session or a failed silent sign-in should land on the form with
+  // the message visible, not on the marketing page.
+  React.useEffect(() => {
+    if (!session && authError) setAuthScreenOpen(true);
+  }, [session, authError]);
 
   React.useEffect(() => {
     const onKeyDown = (event) => {
@@ -124,6 +136,7 @@ export default function App() {
         else if (state.quickCaptureOpen) state.toggleQuickCapture();
         else if (state.aiPanelOpen) state.setAIPanelOpen(false);
         else if (state.exportOpen) state.setExportOpen(false);
+        else if (state.planDialogOpen) state.setPlanDialogOpen(false);
         else if (state.sidebarOpen) state.setSidebarOpen(false);
         return;
       }
@@ -143,7 +156,30 @@ export default function App() {
   if (!session) {
     return (
       <ErrorBoundary>
-        <AuthScreen />
+        <MotionConfig reducedMotion="user">
+          {authScreenOpen ? (
+            <AuthScreen
+              initialMode={authMode}
+              onBack={() => setAuthScreenOpen(false)}
+            />
+          ) : (
+            <LandingPage
+              onSignIn={() => {
+                setAuthMode('signin');
+                setAuthScreenOpen(true);
+              }}
+              onSignUp={() => {
+                setAuthMode('signup');
+                setAuthScreenOpen(true);
+              }}
+              onChoosePlan={(planId) => {
+                useStore.getState().choosePlanBeforeSignup(planId);
+                setAuthMode('signup');
+                setAuthScreenOpen(true);
+              }}
+            />
+          )}
+        </MotionConfig>
       </ErrorBoundary>
     );
   }
@@ -202,10 +238,10 @@ export default function App() {
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div
                     key={activeView}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                    initial={{ opacity: 0, y: 10, scale: 0.995 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.995 }}
+                    transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
                   >
                     {activeView === 'notes' && <NotesView />}
                     {activeView === 'todos' && <TodosView />}
@@ -220,17 +256,28 @@ export default function App() {
           </main>
         </div>
 
-        <div className="fixed bottom-5 right-5 z-30 flex flex-col items-end gap-2 md:bottom-8 md:right-8">
-          <button
-            type="button"
-            onClick={() => useStore.getState().toggleQuickCapture()}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lift transition-transform duration-120 hover:scale-105 active:scale-95"
-            aria-label="Quick capture a note or task"
-            aria-keyshortcuts="Control+J"
-          >
-            <Plus className="h-6 w-6" aria-hidden="true" />
-          </button>
-        </div>
+        {!sidebarOpen && (
+          <div className="fixed bottom-5 right-5 z-30 md:bottom-8 md:right-8">
+            <motion.span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 rounded-full bg-accent/25 blur-lg"
+              animate={{ scale: [1, 1.22, 1], opacity: [0.5, 0.16, 0.5] }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.button
+              type="button"
+              onClick={() => useStore.getState().toggleQuickCapture()}
+              whileHover={{ scale: 1.07, rotate: 90 }}
+              whileTap={{ scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+              className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-glow"
+              aria-label="Quick capture a note or task"
+              aria-keyshortcuts="Control+J"
+            >
+              <Plus className="h-6 w-6" aria-hidden="true" />
+            </motion.button>
+          </div>
+        )}
 
         <AnimatePresence>
           {commandPaletteOpen && <CommandPalette key="command-palette" />}
@@ -249,6 +296,9 @@ export default function App() {
         </AnimatePresence>
         <AnimatePresence>
           {aiSummaryOpen && <AISummaryDialog key="ai-summary" />}
+        </AnimatePresence>
+        <AnimatePresence>
+          {planDialogOpen && <PlanDialog key="plans" />}
         </AnimatePresence>
 
         <ReminderCenter />

@@ -3,6 +3,7 @@ import { api } from '../api';
 import { advanceDueDate } from '../lib/format';
 import { showSystemNotification } from '../lib/notifications';
 import { auth } from '../lib/auth';
+import { normalizePlan } from '../lib/plans';
 
 // The app ships with a single light theme and a single brand color. Clear any
 // preference left behind by the old theme/accent switchers so it cannot
@@ -37,6 +38,44 @@ const initialPermission =
 
 const initialNotifyEnabled = readPreference('tdl.notify', 'on') !== 'off';
 
+const PLAN_KEY = 'tdl.plan';
+const PLAN_USAGE_KEY = 'tdl.plan-usage';
+const PENDING_PLAN_KEY = 'tdl.pending-plan';
+
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function readPlan() {
+  return normalizePlan(readPreference(PLAN_KEY, 'free'));
+}
+
+function readPlanUsage() {
+  const month = currentMonthKey();
+  try {
+    const saved = JSON.parse(localStorage.getItem(PLAN_USAGE_KEY) || 'null');
+    if (saved?.month === month) {
+      return {
+        month,
+        planner: Math.max(0, Number(saved.planner) || 0),
+        notes: Math.max(0, Number(saved.notes) || 0),
+      };
+    }
+  } catch {
+    /* a broken counter should never block the app */
+  }
+  return { month, planner: 0, notes: 0 };
+}
+
+function writePlanUsage(usage) {
+  try {
+    localStorage.setItem(PLAN_USAGE_KEY, JSON.stringify(usage));
+  } catch {
+    /* usage is best-effort */
+  }
+}
+
 // One global listener is enough: the API client fires it when a token expires.
 let authListenerAttached = false;
 
@@ -58,6 +97,7 @@ const emptyWorkspace = {
   aiPlannerOpen: false,
   aiSummaryOpen: false,
   exportOpen: false,
+  planDialogOpen: false,
 };
 
 function authMessage(error) {
@@ -111,6 +151,10 @@ export const useStore = create((set, get) => ({
   aiPlannerOpen: false,
   aiSummaryOpen: false,
   exportOpen: false,
+  planDialogOpen: false,
+  pendingPlan: readPreference(PENDING_PLAN_KEY, null),
+  plan: readPlan(),
+  planUsage: readPlanUsage(),
   notifyEnabled: initialNotifyEnabled,
   notificationPermission: initialPermission,
 
@@ -189,11 +233,22 @@ export const useStore = create((set, get) => ({
     set({ authBusy: true, authError: null, authNotice: null });
     try {
       const { user } = await auth.signUp(email.trim(), password);
+      const pending = readPreference(PENDING_PLAN_KEY, null);
+      const nextPlan = pending ? normalizePlan(pending) : get().plan;
+      if (pending) {
+        storePreference(PLAN_KEY, nextPlan);
+        try {
+          localStorage.removeItem(PENDING_PLAN_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
       set({
         session: { user },
         user,
         authBusy: false,
         authError: null,
+        ...(pending ? { plan: nextPlan, pendingPlan: null } : {}),
       });
       await get().init();
       return { error: null, needsConfirmation: false };
@@ -218,6 +273,7 @@ export const useStore = create((set, get) => ({
       authReady: true,
       authError: null,
       authNotice: null,
+      planDialogOpen: false,
     });
   },
 
@@ -423,6 +479,30 @@ export const useStore = create((set, get) => ({
   setAIPlannerOpen: (open) => set({ aiPlannerOpen: open }),
   setAISummaryOpen: (open) => set({ aiSummaryOpen: open }),
   setExportOpen: (open) => set({ exportOpen: open }),
+  setPlanDialogOpen: (open) => set({ planDialogOpen: open }),
+  choosePlanBeforeSignup: (planId) => {
+    const next = normalizePlan(planId);
+    storePreference(PENDING_PLAN_KEY, next);
+    set({ pendingPlan: next });
+  },
+  setPlan: (planId) => {
+    const next = normalizePlan(planId);
+    storePreference(PLAN_KEY, next);
+    set({ plan: next, planDialogOpen: false });
+  },
+  recordAIUse: (kind) => {
+    if (kind !== 'planner' && kind !== 'notes') return;
+    const month = currentMonthKey();
+    set((state) => {
+      const base = state.planUsage?.month === month ? state.planUsage : readPlanUsage();
+      const next = {
+        ...base,
+        [kind]: (Number(base[kind]) || 0) + 1,
+      };
+      writePlanUsage(next);
+      return { planUsage: next };
+    });
+  },
   clearSyncError: () => set({ syncError: null }),
 
   // ---- Notifications ----

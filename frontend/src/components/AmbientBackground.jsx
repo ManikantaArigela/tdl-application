@@ -44,9 +44,9 @@ export default function AmbientBackground() {
 
     const material = new THREE.PointsMaterial({
       size: 0.035,
-      color: 0x7dd3c7,
+      color: 0x8b5cf6,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.34,
       sizeAttenuation: true,
     });
     const particles = new THREE.Points(geometry, material);
@@ -54,9 +54,9 @@ export default function AmbientBackground() {
 
     const nebulaGeometry = new THREE.SphereGeometry(1.4, 24, 24);
     const nebulaMaterial = new THREE.MeshBasicMaterial({
-      color: 0x0f766e,
+      color: 0x5b21e8,
       transparent: true,
-      opacity: 0.05,
+      opacity: 0.04,
       side: THREE.DoubleSide,
     });
     const nebula = new THREE.Mesh(nebulaGeometry, nebulaMaterial);
@@ -119,7 +119,7 @@ export default function AmbientBackground() {
         className="absolute inset-0"
         style={{
           backgroundImage:
-            'radial-gradient(55% 45% at 12% 0%, rgb(var(--accent) / 0.10), transparent 70%), radial-gradient(45% 40% at 88% 8%, rgb(var(--accent) / 0.07), transparent 72%)',
+            'radial-gradient(55% 45% at 12% 0%, rgb(var(--accent) / 0.09), transparent 70%), radial-gradient(45% 40% at 88% 8%, rgb(var(--pink) / 0.08), transparent 72%)',
         }}
       />
       {!reduceMotion && (

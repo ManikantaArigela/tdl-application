@@ -10,6 +10,7 @@ delete process.env.GEMINI_API_KEY;
 
 const { createApp } = require('../app');
 const { normalizePlan, normalizeContent, normalizeSummary } = require('../lib/ai');
+const gemini = require('../lib/gemini');
 
 let server;
 let baseUrl;
@@ -77,6 +78,128 @@ test('AI routes return a usable 503 message when GEMINI_API_KEY is missing', asy
     notes: [{ title: 'Cells', content: 'Mitosis has four phases.' }],
   });
   assert.equal(summary.response.status, 503);
+});
+
+function geminiResponse(status, body) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => null },
+    json: async () => body,
+  };
+}
+
+test('Gemini retries an overloaded primary model then uses the fallback', async () => {
+  const originalFetch = global.fetch;
+  const original = {
+    key: process.env.GEMINI_API_KEY,
+    model: process.env.GEMINI_MODEL,
+    fallback: process.env.GEMINI_FALLBACK_MODEL,
+    delay: process.env.GEMINI_RETRY_BASE_MS,
+  };
+  const calls = [];
+
+  process.env.GEMINI_API_KEY = 'test-key';
+  process.env.GEMINI_MODEL = 'primary-model';
+  process.env.GEMINI_FALLBACK_MODEL = 'fallback-model';
+  process.env.GEMINI_RETRY_BASE_MS = '0';
+
+  global.fetch = async (url) => {
+    const model = String(url).match(/models\/([^:]+):/)?.[1] || 'unknown';
+    calls.push(model);
+    if (model === 'primary-model') {
+      return geminiResponse(503, {
+        error: {
+          message:
+            'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.',
+        },
+      });
+    }
+    return geminiResponse(200, {
+      candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }],
+    });
+  };
+
+  try {
+    const value = await gemini.generateJson({ prompt: 'test' });
+    assert.deepEqual(value, { ok: true });
+    assert.deepEqual(calls, ['primary-model', 'primary-model', 'fallback-model']);
+  } finally {
+    global.fetch = originalFetch;
+    for (const [name, value] of [
+      ['GEMINI_API_KEY', original.key],
+      ['GEMINI_MODEL', original.model],
+      ['GEMINI_FALLBACK_MODEL', original.fallback],
+      ['GEMINI_RETRY_BASE_MS', original.delay],
+    ]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test('Gemini returns a friendly retryable error after every model is overloaded', async () => {
+  const originalFetch = global.fetch;
+  const original = {
+    key: process.env.GEMINI_API_KEY,
+    model: process.env.GEMINI_MODEL,
+    fallback: process.env.GEMINI_FALLBACK_MODEL,
+    delay: process.env.GEMINI_RETRY_BASE_MS,
+  };
+
+  process.env.GEMINI_API_KEY = 'test-key';
+  process.env.GEMINI_MODEL = 'primary-model';
+  process.env.GEMINI_FALLBACK_MODEL = 'fallback-model';
+  process.env.GEMINI_RETRY_BASE_MS = '0';
+
+  global.fetch = async () =>
+    geminiResponse(503, {
+      error: {
+        message:
+          'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.',
+      },
+    });
+
+  try {
+    await assert.rejects(gemini.generateJson({ prompt: 'test' }), (error) => {
+      assert.equal(error.status, 503);
+      assert.equal(error.retryable, true);
+      assert.match(error.message, /busy/i);
+      assert.match(error.providerMessage, /high demand/i);
+      return true;
+    });
+  } finally {
+    global.fetch = originalFetch;
+    for (const [name, value] of [
+      ['GEMINI_API_KEY', original.key],
+      ['GEMINI_MODEL', original.model],
+      ['GEMINI_FALLBACK_MODEL', original.fallback],
+      ['GEMINI_RETRY_BASE_MS', original.delay],
+    ]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test('AI routes expose retryable service failures', async () => {
+  const original = gemini.generateJson;
+  gemini.generateJson = async () => {
+    const error = new Error('The AI model is busy right now. Please try again in a moment.');
+    error.status = 503;
+    error.retryable = true;
+    error.providerMessage = 'high demand';
+    throw error;
+  };
+
+  try {
+    const plan = await post('/api/ai/plan', { topic: 'cell division' });
+    assert.equal(plan.response.status, 503);
+    assert.equal(plan.body.retryable, true);
+    assert.match(plan.body.error, /busy/i);
+  } finally {
+    gemini.generateJson = original;
+  }
 });
 
 test('normalizePlan clamps model output into safe task and note fields', () => {
