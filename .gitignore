@@ -1,5 +1,8 @@
 # ---------- Dependencies ----------
 node_modules/
+.pnpm-store/
+.yarn/cache/
+.yarn/install-state.gz
 .pnp
 .pnp.*
 .yarn/*
@@ -21,11 +24,13 @@ storybook-static/
 .eslintcache
 
 # ---------- Environment & secrets ----------
-# Real keys belong in .env files (e.g. backend/.env with GEMINI_API_KEY).
+# Real credentials belong in .env files (MongoDB URI, JWT secret, Gemini key).
 # Only example files are committed.
 .env
 .env.*
 !.env.example
+.env.local
+.env.*.local
 
 # ---------- Logs ----------
 logs/
@@ -43,8 +48,19 @@ coverage/
 playwright-report/
 test-results/
 
-# ---------- Local note data and legacy import files ----------
+# ---------- Database dumps, backups & migration exports ----------
+# Keep local data and Supabase/legacy imports out of version control.
 backend/data/
+backend/backups/
+backups/
+dump/
+supabase-export/
+migration/
+*.bson
+*.archive
+*.dump
+/notes.json
+/todos.json
 
 # ---------- Operating system files ----------
 .DS_Store
