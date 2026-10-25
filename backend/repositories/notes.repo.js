@@ -1,100 +1,68 @@
 const crypto = require('crypto');
 
+const Note = require('../models/note');
 const { sanitizeNote } = require('../lib/sanitize');
 const { toNoteDTO } = require('../lib/dto');
 
-const COLUMNS = 'id,title,content,tags,pinned,archived,created_at,updated_at';
-
 /**
- * Notes repository bound to one signed-in user.
- *
- * `supabase` is the request-scoped client (anon key + the user's access token),
- * so RLS applies. Every query also filters by user_id as defence in depth.
+ * Notes repository bound to one signed-in account. Every query filters by
+ * `userId`, so a leaked or guessed note id still cannot reach another user.
  */
-function createNotesRepo({ supabase, userId } = {}) {
-  if (!supabase) throw new Error('createNotesRepo requires a Supabase client');
+function createNotesRepo({ userId } = {}) {
   if (!userId) throw new Error('createNotesRepo requires a user id');
 
   const list = async () => {
-    const { data, error } = await supabase
-      .from('notes')
-      .select(COLUMNS)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false });
-
-    if (error) throw error;
-    return (data ?? []).map(toNoteDTO);
+    const docs = await Note.find({ userId }).sort({ createdAt: -1, _id: -1 }).lean();
+    return docs.map(toNoteDTO);
   };
 
   const create = async (input = {}) => {
     const note = sanitizeNote(input);
-    const now = new Date().toISOString();
+    const now = new Date();
 
-    const { data, error } = await supabase
-      .from('notes')
-      .insert({
-        id: `n_${crypto.randomUUID()}`,
-        user_id: userId,
-        title: note.title,
-        content: note.content,
-        tags: note.tags,
-        pinned: note.pinned,
-        archived: note.archived,
-        created_at: now,
-        updated_at: now,
-      })
-      .select(COLUMNS)
-      .single();
+    const doc = await Note.create({
+      _id: `n_${crypto.randomUUID()}`,
+      userId,
+      title: note.title,
+      content: note.content,
+      tags: note.tags,
+      pinned: note.pinned,
+      archived: note.archived,
+      createdAt: now,
+      updatedAt: now,
+    });
 
-    if (error) throw error;
-    return toNoteDTO(data);
+    return toNoteDTO(doc.toObject());
   };
 
-  /** Returns the updated DTO, or null when the note does not exist. */
+  /** Returns the updated DTO, or null when the note does not exist for this user. */
   const update = async (id, input = {}) => {
-    const { data: existing, error: findError } = await supabase
-      .from('notes')
-      .select(COLUMNS)
-      .eq('id', id)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (findError) throw findError;
+    const existing = await Note.findOne({ _id: id, userId }).lean();
     if (!existing) return null;
 
     const next = sanitizeNote(input, toNoteDTO(existing));
+    const updated = await Note.findOneAndUpdate(
+      { _id: id, userId },
+      {
+        $set: {
+          title: next.title,
+          content: next.content,
+          tags: next.tags,
+          pinned: next.pinned,
+          archived: next.archived,
+          updatedAt: new Date(),
+        },
+      },
+      { new: true, lean: true }
+    );
 
-    const { data, error } = await supabase
-      .from('notes')
-      .update({
-        title: next.title,
-        content: next.content,
-        tags: next.tags,
-        pinned: next.pinned,
-        archived: next.archived,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select(COLUMNS)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data ? toNoteDTO(data) : null;
+    return updated ? toNoteDTO(updated) : null;
   };
 
-  /** Returns true when a row was removed. */
+  /** Returns true when a document was removed. */
   const remove = async (id) => {
-    const { data, error } = await supabase
-      .from('notes')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select('id');
-
-    if (error) throw error;
-    return (data?.length ?? 0) > 0;
+    const result = await Note.deleteOne({ _id: id, userId });
+    return result.deletedCount > 0;
   };
 
   return { list, create, update, remove };

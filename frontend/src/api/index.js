@@ -1,22 +1,36 @@
-import { supabase } from '../lib/supabase';
+import { getToken, clearToken } from '../lib/auth';
 
 const API_BASE = '/api';
 
-async function authHeaders() {
-  if (!supabase) return {};
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+// The store listens for this so an expired token flips the UI back to sign-in.
+const UNAUTHORIZED_EVENT = 'nova:unauthorized';
+
+function authHeaders() {
+  const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function request(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
-    ...(await authHeaders()),
+    ...authHeaders(),
     ...options.headers,
   };
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  } catch {
+    throw new Error('Could not reach the API. Start the backend on port 5001, then retry.');
+  }
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Request failed ${res.status}`);

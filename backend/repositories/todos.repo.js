@@ -1,132 +1,89 @@
 const crypto = require('crypto');
 
+const Todo = require('../models/todo');
 const { sanitizeTodo } = require('../lib/sanitize');
 const { toTodoDTO } = require('../lib/dto');
 
-const COLUMNS =
-  'id,text,priority,completed,due_date,due_time,repeat,completed_at,created_at,sort_order';
+const SORT = { sortOrder: 1, createdAt: 1, _id: 1 };
 
-const iso = (ms) => (typeof ms === 'number' && Number.isFinite(ms) ? new Date(ms).toISOString() : null);
+/** API timestamps are epoch milliseconds; MongoDB stores Dates. */
+const toDoc = (todo) => ({
+  text: todo.text,
+  priority: todo.priority,
+  completed: todo.completed,
+  dueDate: todo.dueDate,
+  dueTime: todo.dueTime,
+  repeat: todo.repeat,
+  completedAt: todo.completedAt === null ? null : new Date(todo.completedAt),
+});
 
 /**
- * Todos repository bound to one signed-in user. Same contract as the previous
- * storage layer: list/create/update/remove/reorder.
+ * Todos repository bound to one signed-in account. Same contract as the
+ * previous storage layer: list/create/update/remove/reorder.
  */
-function createTodosRepo({ supabase, userId } = {}) {
-  if (!supabase) throw new Error('createTodosRepo requires a Supabase client');
+function createTodosRepo({ userId } = {}) {
   if (!userId) throw new Error('createTodosRepo requires a user id');
 
   const list = async () => {
-    const { data, error } = await supabase
-      .from('todos')
-      .select(COLUMNS)
-      .eq('user_id', userId)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
-
-    if (error) throw error;
-    return (data ?? []).map(toTodoDTO);
+    const docs = await Todo.find({ userId }).sort(SORT).lean();
+    return docs.map(toTodoDTO);
   };
 
   /**
-   * New todos sort to the top without shifting every row: take the lowest
-   * current order and step one below it.
+   * New todos sort to the top without shifting every document: take the lowest
+   * current order for this user and step one below it.
    */
   const nextTopOrder = async () => {
-    const { data, error } = await supabase
-      .from('todos')
-      .select('sort_order')
-      .eq('user_id', userId)
-      .order('sort_order', { ascending: true })
-      .limit(1);
-
-    if (error) throw error;
-    return data?.[0] ? Number(data[0].sort_order) - 1 : 0;
+    const first = await Todo.findOne({ userId }).sort({ sortOrder: 1 }).select('sortOrder').lean();
+    return first ? Number(first.sortOrder) - 1 : 0;
   };
 
   const create = async (input = {}) => {
     const todo = sanitizeTodo(input);
     if (!todo.text) return { ok: false, reason: 'invalid' };
 
-    const { data, error } = await supabase
-      .from('todos')
-      .insert({
-        id: `t_${crypto.randomUUID()}`,
-        user_id: userId,
-        text: todo.text,
-        priority: todo.priority,
-        completed: todo.completed,
-        due_date: todo.dueDate,
-        due_time: todo.dueTime,
-        repeat: todo.repeat,
-        completed_at: iso(todo.completedAt),
-        created_at: new Date().toISOString(),
-        sort_order: await nextTopOrder(),
-      })
-      .select(COLUMNS)
-      .single();
+    const doc = await Todo.create({
+      _id: `t_${crypto.randomUUID()}`,
+      userId,
+      ...toDoc(todo),
+      createdAt: new Date(),
+      sortOrder: await nextTopOrder(),
+    });
 
-    if (error) throw error;
-    return { ok: true, todo: toTodoDTO(data) };
+    return { ok: true, todo: toTodoDTO(doc.toObject()) };
   };
 
   const update = async (id, input = {}) => {
-    const { data: existing, error: findError } = await supabase
-      .from('todos')
-      .select(COLUMNS)
-      .eq('id', id)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (findError) throw findError;
+    const existing = await Todo.findOne({ _id: id, userId }).lean();
     if (!existing) return { ok: false, reason: 'not_found' };
 
     const next = sanitizeTodo(input, toTodoDTO(existing));
     if (!next.text) return { ok: false, reason: 'invalid' };
 
-    const { data, error } = await supabase
-      .from('todos')
-      .update({
-        text: next.text,
-        priority: next.priority,
-        completed: next.completed,
-        due_date: next.dueDate,
-        due_time: next.dueTime,
-        repeat: next.repeat,
-        completed_at: iso(next.completedAt),
-      })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select(COLUMNS)
-      .maybeSingle();
+    const updated = await Todo.findOneAndUpdate(
+      { _id: id, userId },
+      { $set: toDoc(next) },
+      { new: true, lean: true }
+    );
 
-    if (error) throw error;
-    if (!data) return { ok: false, reason: 'not_found' };
-    return { ok: true, todo: toTodoDTO(data) };
+    if (!updated) return { ok: false, reason: 'not_found' };
+    return { ok: true, todo: toTodoDTO(updated) };
   };
 
   const remove = async (id) => {
-    const { data, error } = await supabase
-      .from('todos')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select('id');
-
-    if (error) throw error;
-    return (data?.length ?? 0) > 0;
+    const result = await Todo.deleteOne({ _id: id, userId });
+    return result.deletedCount > 0;
   };
 
   /**
-   * Mirrors the previous contract: ids the client sent (deduped, existing only)
-   * come first, then every record it did not send, in current order. Records are
+   * Mirrors the API contract: ids the client sent (deduped, existing only) come
+   * first, then every record it did not send, in current order. Records are
    * never dropped. The canonical list is re-read afterwards so a racing client
    * converges instead of assuming.
    */
   const reorder = async (items) => {
-    const existing = await list();
-    const byId = new Map(existing.map((todo) => [todo.id, todo]));
+    const existing = await Todo.find({ userId }).sort(SORT).lean();
+    const byId = new Map(existing.map((todo) => [todo._id, todo]));
     const seen = new Set();
     const orderedIds = [];
 
@@ -138,29 +95,19 @@ function createTodosRepo({ supabase, userId } = {}) {
     }
 
     for (const todo of existing) {
-      if (!seen.has(todo.id)) orderedIds.push(todo.id);
+      if (!seen.has(todo._id)) orderedIds.push(todo._id);
     }
 
     if (orderedIds.length > 0) {
-      const rows = orderedIds.map((id, index) => {
-        const todo = byId.get(id);
-        return {
-          id,
-          user_id: userId,
-          text: todo.text,
-          priority: todo.priority,
-          completed: todo.completed,
-          due_date: todo.dueDate,
-          due_time: todo.dueTime,
-          repeat: todo.repeat,
-          completed_at: iso(todo.completedAt),
-          created_at: iso(todo.createdAt) ?? new Date().toISOString(),
-          sort_order: index,
-        };
-      });
-
-      const { error } = await supabase.from('todos').upsert(rows, { onConflict: 'id' });
-      if (error) throw error;
+      await Todo.bulkWrite(
+        orderedIds.map((id, index) => ({
+          updateOne: {
+            filter: { _id: id, userId },
+            update: { $set: { sortOrder: index } },
+          },
+        })),
+        { ordered: false }
+      );
     }
 
     return list();

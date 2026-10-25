@@ -1,9 +1,8 @@
 /**
  * In-memory implementation of the repository contract for route tests.
  *
- * Rows are stored in the same snake_case shape Supabase returns and mapped
- * through lib/dto, so the tests still guard the API boundary without requiring
- * a live Supabase project.
+ * Rows are stored in the snake_case shape Supabase exported and mapped through
+ * lib/dto, so the tests guard the API boundary without requiring a live MongoDB.
  */
 const crypto = require('crypto');
 

@@ -1,10 +1,10 @@
 /**
- * The single place where storage rows become API types.
+ * The single place where storage documents become API types.
  *
- * Supabase returns snake_case columns and ISO timestamps. The client contract
- * stays camelCase with epoch-millisecond timestamps, exactly as before the
- * database migration. Repositories must map rows through this file rather than
- * returning PostgREST data directly.
+ * MongoDB documents use `_id` and camelCase fields, while the in-memory test
+ * repositories and any imported Supabase rows use snake_case. This mapping layer
+ * accepts both so the HTTP contract stays stable: camelCase keys with
+ * epoch-millisecond timestamps and no storage internals (no `_id`, `userId`).
  */
 
 const toMs = (value) => {
@@ -17,33 +17,45 @@ const toMs = (value) => {
   return null;
 };
 
-const toNoteDTO = (row = {}) => ({
-  id: String(row.id ?? row._id ?? ''),
-  title: typeof row.title === 'string' ? row.title : '',
-  content: typeof row.content === 'string' ? row.content : '',
-  tags: Array.isArray(row.tags) ? row.tags : [],
-  pinned: Boolean(row.pinned),
-  archived: Boolean(row.archived),
-  createdAt: toMs(row.created_at ?? row.createdAt),
-  updatedAt: toMs(row.updated_at ?? row.updatedAt),
+const pick = (doc, ...keys) => {
+  for (const key of keys) {
+    if (doc?.[key] !== undefined) return doc[key];
+  }
+  return undefined;
+};
+
+const toNoteDTO = (doc = {}) => ({
+  id: String(pick(doc, '_id', 'id') ?? ''),
+  title: typeof doc.title === 'string' ? doc.title : '',
+  content: typeof doc.content === 'string' ? doc.content : '',
+  tags: Array.isArray(doc.tags) ? doc.tags : [],
+  pinned: Boolean(doc.pinned),
+  archived: Boolean(doc.archived),
+  createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
+  updatedAt: toMs(pick(doc, 'updatedAt', 'updated_at')),
 });
 
-const toTodoDTO = (row = {}) => ({
-  id: String(row.id ?? row._id ?? ''),
-  text: typeof row.text === 'string' ? row.text : '',
-  priority: typeof row.priority === 'string' ? row.priority : 'medium',
-  completed: Boolean(row.completed),
-  dueDate:
-    typeof (row.due_date ?? row.dueDate) === 'string' && (row.due_date ?? row.dueDate)
-      ? row.due_date ?? row.dueDate
-      : null,
-  dueTime:
-    typeof (row.due_time ?? row.dueTime) === 'string' && (row.due_time ?? row.dueTime)
-      ? row.due_time ?? row.dueTime
-      : null,
-  repeat: typeof row.repeat === 'string' ? row.repeat : 'none',
-  completedAt: toMs(row.completed_at ?? row.completedAt),
-  createdAt: toMs(row.created_at ?? row.createdAt),
+const toTodoDTO = (doc = {}) => {
+  const dueDate = pick(doc, 'dueDate', 'due_date');
+  const dueTime = pick(doc, 'dueTime', 'due_time');
+
+  return {
+    id: String(pick(doc, '_id', 'id') ?? ''),
+    text: typeof doc.text === 'string' ? doc.text : '',
+    priority: typeof doc.priority === 'string' ? doc.priority : 'medium',
+    completed: Boolean(doc.completed),
+    dueDate: typeof dueDate === 'string' && dueDate ? dueDate : null,
+    dueTime: typeof dueTime === 'string' && dueTime ? dueTime : null,
+    repeat: typeof doc.repeat === 'string' ? doc.repeat : 'none',
+    completedAt: toMs(pick(doc, 'completedAt', 'completed_at')),
+    createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
+  };
+};
+
+const toUserDTO = (doc = {}) => ({
+  id: String(pick(doc, '_id', 'id') ?? ''),
+  email: typeof doc.email === 'string' ? doc.email : '',
+  createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
 });
 
-module.exports = { toMs, toNoteDTO, toTodoDTO };
+module.exports = { toMs, toNoteDTO, toTodoDTO, toUserDTO };

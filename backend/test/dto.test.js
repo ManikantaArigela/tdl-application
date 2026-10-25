@@ -1,14 +1,14 @@
 /**
- * Pure mapping guards for the Supabase migration.
+ * Pure mapping guards for the MongoDB migration.
  *
- * PostgREST returns snake_case columns and ISO timestamps. The API contract is
- * camelCase with epoch milliseconds. These tests protect that boundary without
- * needing a live database.
+ * MongoDB documents use `_id` and camelCase fields; imported Supabase rows use
+ * snake_case. The API contract is camelCase with epoch milliseconds, so these
+ * tests protect that boundary without needing a live database.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { toMs, toNoteDTO, toTodoDTO } = require('../lib/dto');
+const { toMs, toNoteDTO, toTodoDTO, toUserDTO } = require('../lib/dto');
 const { mapError } = require('../lib/errors');
 
 const ISO = '2026-10-24T12:00:00.000Z';
@@ -48,6 +48,41 @@ test('note rows map from snake_case to the API shape', () => {
   });
   assert.equal(note.created_at, undefined);
   assert.equal(note.user_id, undefined);
+});
+
+test('MongoDB notes map _id to id and drop account internals', () => {
+  const note = toNoteDTO({
+    _id: 'n_2',
+    userId: 'u_1',
+    title: 'Mongo',
+    content: 'Body',
+    tags: ['x'],
+    pinned: false,
+    archived: true,
+    createdAt: new Date(MS),
+    updatedAt: new Date(MS),
+  });
+
+  assert.deepEqual(note, {
+    id: 'n_2',
+    title: 'Mongo',
+    content: 'Body',
+    tags: ['x'],
+    pinned: false,
+    archived: true,
+    createdAt: MS,
+    updatedAt: MS,
+  });
+  assert.equal(note._id, undefined);
+  assert.equal(note.userId, undefined);
+});
+
+test('user documents expose only id, email, and createdAt', () => {
+  assert.deepEqual(toUserDTO({ _id: 'u_1', email: 'a@example.com', passwordHash: 'secret' }), {
+    id: 'u_1',
+    email: 'a@example.com',
+    createdAt: null,
+  });
 });
 
 test('todo rows map from snake_case to the API shape', () => {
@@ -96,11 +131,11 @@ test('todo rows tolerate null due fields', () => {
 });
 
 test('database errors map to client-safe statuses', () => {
-  assert.equal(mapError({ code: '23505' }).status, 409);
-  assert.equal(mapError({ code: '23514' }).status, 400);
-  assert.equal(mapError({ code: '42501' }).status, 403);
-  assert.equal(mapError({ code: '42P01' }).status, 503);
-  assert.equal(mapError({ code: 'PGRST301' }).status, 401);
+  assert.equal(mapError({ code: 11000, keyPattern: { email: 1 } }).status, 409);
+  assert.equal(mapError({ name: 'ValidationError', errors: {} }).status, 400);
+  assert.equal(mapError({ name: 'CastError', path: 'x' }).status, 400);
+  assert.equal(mapError({ name: 'MongoNetworkError' }).status, 503);
+  assert.equal(mapError({ name: 'MongoServerSelectionError' }).status, 503);
   assert.equal(mapError({ message: 'TypeError: fetch failed' }).status, 503);
   assert.equal(mapError(new SyntaxError('bad json')).status, 400);
   assert.equal(mapError(new Error('boom')).status, 500);

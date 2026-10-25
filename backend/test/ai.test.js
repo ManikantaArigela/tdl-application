@@ -24,7 +24,6 @@ before(async () => {
     authenticate: (req, res, next) => {
       req.userId = 'test-user';
       req.user = { id: 'test-user' };
-      req.supabase = {};
       next();
     },
     checkDatabase: async () => true,

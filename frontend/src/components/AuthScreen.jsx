@@ -10,9 +10,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { isSupabaseConfigured } from '../lib/supabase';
 
 const emailLooksValid = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const MIN_PASSWORD_LENGTH = 8;
 
 function BrandMark() {
   return (
@@ -26,40 +26,6 @@ function BrandMark() {
         </svg>
       </span>
       <span className="font-display text-2xl leading-none text-ink">TDL</span>
-    </div>
-  );
-}
-
-function ConfigNotice() {
-  return (
-    <div className="panel-raised w-full max-w-md p-8">
-      <BrandMark />
-      <h1 className="mt-7 text-3xl text-ink">Connect Supabase</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted">
-        Authentication needs your Supabase project. Create one, then add these values:
-      </p>
-
-      <div className="mt-5 space-y-4 text-sm">
-        <div>
-          <p className="font-medium text-ink">Frontend — <code className="font-mono text-xs">frontend/.env</code></p>
-          <pre className="mt-1.5 overflow-x-auto rounded-lg bg-raised p-3 font-mono text-[11px] leading-relaxed text-muted">
-{`VITE_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR-ANON-KEY`}
-          </pre>
-        </div>
-        <div>
-          <p className="font-medium text-ink">Backend — <code className="font-mono text-xs">backend/.env</code></p>
-          <pre className="mt-1.5 overflow-x-auto rounded-lg bg-raised p-3 font-mono text-[11px] leading-relaxed text-muted">
-{`SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_ANON_KEY=YOUR-ANON-KEY`}
-          </pre>
-        </div>
-      </div>
-
-      <p className="mt-5 text-xs leading-relaxed text-faint">
-        Then run <code className="font-mono">supabase/schema.sql</code> in the Supabase SQL Editor and
-        restart both dev servers.
-      </p>
     </div>
   );
 }
@@ -96,8 +62,8 @@ export default function AuthScreen() {
       setFormError('Enter a valid email address.');
       return;
     }
-    if (password.length < 6) {
-      setFormError('Use a password with at least 6 characters.');
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setFormError(`Use a password with at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (isSignup && password !== confirm) {
@@ -117,14 +83,6 @@ export default function AuthScreen() {
 
     await signIn(email, password);
   };
-
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-12">
-        <ConfigNotice />
-      </div>
-    );
-  }
 
   return (
     <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-canvas px-4 py-12">
@@ -192,7 +150,7 @@ export default function AuthScreen() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="input px-10"
-                  placeholder={isSignup ? 'At least 6 characters' : 'Your password'}
+                  placeholder={isSignup ? `At least ${MIN_PASSWORD_LENGTH} characters` : 'Your password'}
                   disabled={authBusy}
                   aria-invalid={Boolean(formError || authError)}
                 />
@@ -293,7 +251,7 @@ export default function AuthScreen() {
 
         <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-faint">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          Private by default — protected by Supabase Row Level Security.
+          Private by default — each account can only read its own data.
         </p>
       </div>
     </div>

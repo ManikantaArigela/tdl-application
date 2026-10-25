@@ -13,7 +13,6 @@ before(async () => {
     authenticate: (req, res, next) => {
       req.userId = 'test-user';
       req.user = { id: 'test-user', email: 'test@example.com' };
-      req.supabase = {};
       next();
     },
     checkDatabase: async () => true,
@@ -44,11 +43,11 @@ async function request(pathname, options = {}) {
 
 const json = (payload) => ({ body: JSON.stringify(payload) });
 
-test('health reports the Supabase storage backend', async () => {
+test('health reports the MongoDB storage backend', async () => {
   const { response, body } = await request('/api/health');
   assert.equal(response.status, 200);
   assert.equal(body.status, 'ok');
-  assert.equal(body.storage, 'supabase');
+  assert.equal(body.storage, 'mongodb');
   assert.ok(body.timestamp);
 });
 

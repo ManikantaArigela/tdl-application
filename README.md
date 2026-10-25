@@ -1,12 +1,12 @@
 # TDL
 
-A highly interactive, 3D-animated notes & todo list application with a clean **frontend + backend** architecture, Supabase authentication, and per-user data.
+A highly interactive, 3D-animated notes & todo list application with a clean **frontend + backend** architecture, MongoDB persistence, JWT authentication, and per-user data.
 
-![TDL preview](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)
+![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-3-06B6D4?style=for-the-badge&logo=tailwindcss)
 ![Express](https://img.shields.io/badge/Express-4-000000?style=for-the-badge&logo=express)
-![Supabase](https://img.shields.io/badge/Supabase-Postgres-3ECF8E?style=for-the-badge&logo=supabase)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb)
 ![Zustand](https://img.shields.io/badge/Zustand-4-FFCC00?style=for-the-badge)
 
 ---
@@ -16,39 +16,44 @@ A highly interactive, 3D-animated notes & todo list application with a clean **f
 ```
 nova-notes/
 ├── README.md
-├── .env.example
-├── supabase/
-│   ├── config.toml               # Supabase CLI local-development config
-│   └── schema.sql                # Tables, indexes, RLS policies
-├── backend/                      # Express API + Supabase
+├── .env.example                  # Documentation only; the app reads backend/.env
+├── backend/                      # Express API + MongoDB
 │   ├── package.json
-│   ├── server.js                 # Entry point (checks Supabase, runs on :5001)
-│   ├── app.js                    # Express wiring + routes (storage-agnostic)
+│   ├── server.js                 # Entry point (connects to MongoDB, runs on :5001)
+│   ├── app.js                    # Express wiring, auth routes, data + AI routes
+│   ├── db.js                     # Mongoose connection, health ping, URI masking
 │   ├── .env.example
 │   ├── lib/
-│   │   ├── supabase.js           # Anon client + per-user client + health probe
-│   │   ├── auth.js               # Bearer token verification middleware
+│   │   ├── auth.js               # bcrypt hashing, JWT signing/verification, middleware
 │   │   ├── sanitize.js           # Input clamping/coercion
-│   │   ├── dto.js                # Postgres rows → camelCase API types
-│   │   └── errors.js             # Postgres/Express error → status mapping
+│   │   ├── dto.js                # MongoDB documents → camelCase API types
+│   │   ├── errors.js             # Mongo/Express error → status mapping
+│   │   ├── rate-limit.js         # In-memory login/signup throttle
+│   │   ├── gemini.js             # Server-side Gemini client
+│   │   └── ai.js                 # Prompt builders + model-output normalizers
+│   ├── models/
+│   │   ├── note.js               # notes collection (per-user indexes)
+│   │   ├── todo.js               # todos collection (per-user indexes)
+│   │   └── user.js               # accounts collection (email + bcrypt hash)
 │   ├── repositories/
-│   │   ├── notes.repo.js         # Supabase queries scoped to one user
+│   │   ├── notes.repo.js         # MongoDB queries scoped to one userId
 │   │   ├── todos.repo.js
+│   │   ├── users.repo.js
 │   │   └── index.js
-│   ├── test/                     # node:test suites (in-memory repos)
-│   └── test-utils/memory-repos.js
+│   ├── scripts/
+│   │   └── import-data.js        # JSON (Supabase/legacy) → MongoDB importer
+│   └── test/                     # node:test suites (in-memory repos)
 └── frontend/                     # React + Vite SPA (runs on :5173)
     ├── package.json
     ├── vite.config.js
     ├── tailwind.config.js
     ├── index.html
-    ├── .env.example
     └── src/
         ├── main.jsx
         ├── App.jsx                # Auth gate + app shell
         ├── index.css
-        ├── api/index.js           # Fetch wrapper with the access token
-        ├── lib/supabase.js        # Browser auth client
+        ├── api/index.js           # Fetch wrapper with the JWT
+        ├── lib/auth.js            # Token storage + /api/auth client
         ├── store/useStore.js      # Zustand state, auth, API sync
         ├── components/            # AmbientBackground, AuthScreen, CommandPalette,
         │                          # ExportDialog, Header, InsightsPanel, NoteEditor,
@@ -62,25 +67,18 @@ nova-notes/
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 22+
 - npm
-- A free [Supabase](https://supabase.com/) project
+- A MongoDB database — [MongoDB Atlas](https://www.mongodb.com/atlas) (free tier is enough) or a local `mongod`
 
-### 1. Create the database
+### 1. Prepare MongoDB
 
-1. Open your Supabase project → **SQL Editor** → **New query**.
-2. Paste and run [`supabase/schema.sql`](supabase/schema.sql).
-   This creates `notes` and `todos`, enables Row Level Security, and adds owner-only policies.
-3. Open **Authentication → Providers → Email** and make sure Email is enabled.
-   - For local development, you can turn **Confirm email** off so signup logs you in immediately.
-   - If you leave confirmation on, set **Authentication → URL Configuration → Site URL** to
-     `http://localhost:5173` and click the link in the confirmation email before signing in.
-   - For a deployed app, set the **Site URL** to your frontend origin (for example,
-     `https://your-app.vercel.app`) so confirmation links return to the right place.
-4. Copy the **Project URL** and **anon public key** from **Project Settings → API**.
-
-> The anon key is meant to be public. It only works with the policies in `schema.sql`.
-> The service-role key is **not** used anywhere in this app.
+1. Create a cluster and a database user in Atlas.
+2. Copy the connection string and add a database name before the query string, for example:
+   `mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/nova_notes?retryWrites=true&w=majority`
+3. For local development, allow your IP in **Network Access** (or `0.0.0.0/0` for a throwaway database).
+4. Nothing else is required: the backend creates the `users`, `notes`, and `todos` collections and their indexes on first use. Set `MONGO_AUTO_INDEX=false` if an operator manages indexes separately.
 
 ### 2. Start the backend
 
@@ -95,63 +93,35 @@ npm start                # http://localhost:5001
 
 ```ini
 PORT=5001
-SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_ANON_KEY=YOUR-ANON-KEY
+MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/nova_notes?retryWrites=true&w=majority
+JWT_SECRET=replace-with-a-long-random-value
+JWT_EXPIRES_IN=30d
+AUTH_RATE_LIMIT_MAX=20
 
 # Optional: enables the AI planner, note help, and summaries.
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
-The server refuses to start if Supabase is unreachable or the schema has not been applied, so a
-misconfigured connection fails loudly instead of serving empty data.
+Generate a JWT secret with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+The server refuses to start when `MONGODB_URI` or `JWT_SECRET` is missing, or when MongoDB cannot be reached. That way a misconfigured deployment fails loudly instead of serving empty data.
 
 ### 3. Start the frontend (new terminal)
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env     # then add the same URL + anon key
 npm run dev              # http://localhost:5173
 ```
 
-`frontend/.env`:
+The frontend needs **no environment variables**. It calls the backend through the relative `/api` path (Vite proxies `/api` to `http://localhost:5001`) and stores its JWT in `localStorage`. Create an account and you are signed in immediately — there is no email-confirmation step.
 
-```ini
-VITE_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR-ANON-KEY
-```
-
-The frontend proxies `/api` requests to `http://localhost:5001` via Vite. Create an account, confirm
-your email if required, and sign in.
-
-### 4. Local Supabase (optional)
-
-If you have Docker and the Supabase CLI, you can run the whole stack locally instead of using a hosted
-project:
-
-```bash
-npx supabase start
-```
-
-`supabase start` prints the local API URL and keys. Put the publishable/anon key in both `.env` files
-(never the service-role/secret key). You can run `npx supabase status` at any time to print them again.
-Local email confirmations are off, so signup logs you in immediately.
-
-Apply [`supabase/schema.sql`](supabase/schema.sql) to the local database:
-
-```bash
-# macOS / Linux / Git Bash
-docker exec -i supabase_db_nova-notes psql -U postgres -d postgres < supabase/schema.sql
-
-# PowerShell
-Get-Content -Raw supabase/schema.sql | docker exec -i supabase_db_nova-notes psql -U postgres -d postgres
-```
-
-Stop the stack with `npx supabase stop`; add `--no-backup` to discard local data. The local config
-sets the auth site URL to `http://localhost:5173`.
-
-### 5. Production build
+### 4. Production build
 
 ```bash
 # terminal 1
@@ -164,29 +134,33 @@ npm run build            # outputs to frontend/dist/
 npm run preview          # serve the build; /api is proxied to :5001
 ```
 
-### 6. API tests
+### 5. API tests
 
 ```bash
 cd backend
 npm test
 ```
 
-The suite uses an in-memory repository implementation, so it needs no Supabase project and never
-touches your real data. It guards the API contract, validation, ordering, and error paths.
+The suite uses an in-memory repository implementation, so it needs no MongoDB instance and never touches your real data. It guards the API contract, authentication, validation, ordering, and error paths.
 
 ---
 
 ## Authentication & data isolation
 
-- Signup and login use **Supabase Auth** (email + password) in the browser.
-- The browser stores the session, refreshes it automatically, and attaches
-  `Authorization: Bearer <access_token>` to every `/api` request.
-- Express verifies the token with Supabase, then creates a **user-scoped Supabase client** for that
-  request. Repositories run as the user, so Postgres Row Level Security applies.
-- Every query also filters on `user_id` as defence in depth.
-- Signing out clears the local workspace. Another account never sees the first account's notes or
-  tasks, even in the same browser.
+- Signup and login use email + password against the `users` collection.
+- Passwords are hashed with **bcrypt** (cost 12) and the hash is never returned by the API.
+- A successful login returns a **signed JWT** (`HS256`, 30 days by default). The browser stores it and attaches `Authorization: Bearer <token>` to every request.
+- Express verifies the token, then builds repositories scoped to that account. **Every notes/todos query filters on `userId`**, so one account cannot read or mutate another account's records.
+- Tokens are stateless. Signing out clears the browser token; `/api/auth/logout` exists so clients have one explicit endpoint to call.
+- When an API request returns `401`, the client clears the stored token and returns to the sign-in screen.
+- `/api/auth/signup` and `/api/auth/login` are throttled per IP + email (20 attempts per 15 minutes by default, `AUTH_RATE_LIMIT_MAX`).
 - `/api/health` and `/api/ai/status` are public. Everything else returns `401` without a valid token.
+
+### Current auth limitations
+
+- There is no email verification, password reset flow, or refresh-token rotation. `JWT_EXPIRES_IN` controls how long a session lasts.
+- Rate limiting is per process. For multiple backend instances, put a shared limiter (Redis or an API gateway) in front of `/api/auth`.
+- Rotating `JWT_SECRET` signs every user out.
 
 The AI endpoints are protected too, so visitors cannot spend your Gemini quota without an account.
 
@@ -196,7 +170,7 @@ The AI endpoints are protected too, so visitors cannot spend your Gemini quota w
 
 | Category | Features |
 |---|---|
-| **Auth** | Email/password signup + login, session persistence and refresh, email confirmation support, sign-out, per-user private workspace |
+| **Auth** | Email/password signup + login, bcrypt hashing, 30-day JWT sessions, session restore on reload, sign-out, per-user private workspace |
 | **Notes** | Create, edit, pin, archive, delete, tag, search (title/content/tags), debounced autosave with save status, AI improve + summarize per note |
 | **Todos** | Card-based task board with due dates **and times**, priority sorting (or manual order / due-date order), recurring tasks (daily or weekly), drag onto completed/carried-over boxes, inline carry action, clear completed |
 | **Reminders** | In-app toasts plus browser/mobile notifications from 10 minutes before a task's due time, with a per-browser permission control in the header |
@@ -206,29 +180,25 @@ The AI endpoints are protected too, so visitors cannot spend your Gemini quota w
 | **Interactions** | Command palette (`Cmd+K` / `Ctrl+K`), quick capture (`Cmd+J` / `Ctrl+J`), responsive navigation drawer, skip link, focus states |
 | **Insights** | Weekly review and focus list computed locally from your data |
 | **Analytics** | Completion rate, streak, notes edited this week, seven-day completion chart from real `completedAt` timestamps |
-| **Data** | Supabase Postgres, per-user RLS, indexed list/reorder queries, REST API via Express |
+| **Data** | MongoDB with per-user indexes, account-scoped queries, REST API via Express |
 
 ### Notifications
 
-Click the bell in the header to allow browser notifications. TDL reminds you from 10 minutes before a
-task's due time until shortly after it, once per due moment. In-app toasts appear even when browser
-permission is denied.
+Click the bell in the header to allow browser notifications. TDL reminds you from 10 minutes before a task's due time until shortly after it, once per due moment. In-app toasts appear even when browser permission is denied.
 
-- Notifications are delivered by the page or the installed app. Keep TDL open (or installed) for
-  reminders; there is no push server.
+- Notifications are delivered by the page or the installed app. Keep TDL open (or installed) for reminders; there is no push server.
 - Service workers and notifications require `https://` or `localhost`.
-- On iPhone, add TDL to the Home Screen first — Safari only exposes notifications to installed web
-  apps.
-- Reminder history is stored per browser in `localStorage`, so refreshing does not re-alert the same
-  due moment.
+- On iPhone, add TDL to the Home Screen first — Safari only exposes notifications to installed web apps.
+- Reminder history is stored per browser in `localStorage`, so refreshing does not re-alert the same due moment.
 
 ---
 
 ## Tech Stack
 
 - **Frontend:** React 18, Vite 5, Tailwind CSS, Framer Motion, Zustand, Lucide React, Three.js
-- **Auth + Database:** Supabase Auth and Postgres (Row Level Security)
-- **Backend:** Express 4, `@supabase/supabase-js` (anon key + user JWT)
+- **Backend:** Express 4, Mongoose 8, bcryptjs, jsonwebtoken
+- **Database:** MongoDB (Atlas or self-hosted)
+- **Auth:** Email + password with bcrypt hashes and signed JWTs
 - **AI:** Google Gemini via the Generative Language REST API (server-side key)
 - **State:** Zustand with API-synchronized actions
 
@@ -238,11 +208,21 @@ permission is denied.
 
 Base URL: `http://localhost:5001`
 
-All routes except `/api/health` and `/api/ai/status` require:
+All routes except `/api/health`, `/api/ai/status`, and the auth endpoints require:
 
 ```http
-Authorization: Bearer <supabase-access-token>
+Authorization: Bearer <jwt>
 ```
+
+### Auth
+| Method | Endpoint | Body | Description |
+|---|---|---|---|
+| `POST` | `/api/auth/signup` | `{ email, password }` | Create an account; returns `{ token, user }` |
+| `POST` | `/api/auth/login` | `{ email, password }` | Sign in; returns `{ token, user }` |
+| `GET` | `/api/auth/me` | — | Return the signed-in `{ user }` |
+| `POST` | `/api/auth/logout` | — | Always `{ success: true }`; the client discards its token |
+
+Passwords must be 8–200 characters. Emails are normalized to lowercase.
 
 ### Notes
 | Method | Endpoint | Body | Description |
@@ -261,8 +241,7 @@ Authorization: Bearer <supabase-access-token>
 | `DELETE` | `/api/todos/:id` | — | Delete todo |
 | `PUT` | `/api/todos/reorder` | `{ todos: [...] }` | Bulk reorder (ids or `{ id }` objects) |
 
-`dueTime` is a 24-hour `HH:MM` string or `null`. `repeat` is `none`, `daily`, or `weekly`;
-completing a recurring task rolls its due date forward instead of closing it.
+`dueTime` is a 24-hour `HH:MM` string or `null`. `repeat` is `none`, `daily`, or `weekly`; completing a recurring task rolls its due date forward instead of closing it.
 
 ### AI (Gemini)
 | Method | Endpoint | Body | Description |
@@ -272,19 +251,16 @@ completing a recurring task rolls its due date forward instead of closing it.
 | `POST` | `/api/ai/notes/enhance` | `{ title, content }` | Rewrite a note into structured study notes |
 | `POST` | `/api/ai/notes/summarize` | `{ title, content }` or `{ notes: [...] }` | Summarize one note or a collection |
 
-All AI routes return `503` when `GEMINI_API_KEY` is missing, and `401` without a session. Uploads are
-handled server-side and forwarded to Gemini; the browser only talks to this API.
+All AI routes return `503` when `GEMINI_API_KEY` is missing, and `401` without a session. Uploads are handled server-side and forwarded to Gemini; the browser only talks to this API.
 
 ### Health
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/health` | `200` when Supabase answers, `503` when it does not |
+| `GET` | `/api/health` | `200` when MongoDB answers, `503` when it does not |
 
 ### Error format
 
-All failures return `{ "error": "..." }` with `400` (validation), `401` (missing/expired session),
-`403` (not your record), `404` (missing record), `409` (duplicate id), `503` (database unavailable or
-schema not applied) or `500` (unexpected).
+All failures return `{ "error": "..." }` with `400` (validation), `401` (missing/expired session or bad credentials), `409` (duplicate email/id), `429` (too many auth attempts), `503` (database unavailable or auth not configured) or `500` (unexpected).
 
 ---
 
@@ -294,36 +270,65 @@ schema not applied) or `500` (unexpected).
 - **Theme:** The app uses a single light theme; the former light/dark switcher has been removed and any stored `nova.theme` preference is cleared on load.
 - **Brand color:** A single fixed teal palette. The former accent picker, its command, and its `localStorage` preference (`nova.accent`) have been removed.
 - **API base URL:** The client uses the relative `/api` path. Vite proxies it to `http://localhost:5001` in development (`frontend/vite.config.js`); in production, serve `dist/` behind a proxy that forwards `/api` to the backend.
-- **Backend port:** `PORT` in `backend/.env`. Supabase keys live in `backend/.env` and `frontend/.env`.
+- **Backend port:** `PORT` in `backend/.env`.
+- **Session lifetime:** `JWT_EXPIRES_IN` in `backend/.env` (for example `12h`, `7d`, `30d`).
+- **Database:** `MONGODB_URI` in `backend/.env`. Use a dedicated database name (for example `nova_notes`).
 
 ---
 
-## Data model notes
+## Data model
 
-- `notes` and `todos` are Postgres tables in the `public` schema. Both have a text `id` (`n_<uuid>` /
-  `t_<uuid>`), `user_id uuid references auth.users(id)`, and `created_at` / `updated_at` timestamps.
-- RLS is enabled on both tables with a single owner policy:
-  `auth.uid() = user_id` for `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
-- Postgres rows use snake_case (`due_date`, `completed_at`, `sort_order`). `backend/lib/dto.js` is the
-  only mapping layer back to the camelCase API contract (`dueDate`, `completedAt`) with epoch-ms
-  timestamps.
-- Todo order is an explicit sparse `sort_order`. New todos take `min(sort_order) - 1` (one insert, no
-  shifting). Reorder assigns dense positions with one upsert and returns the canonical list so
-  racing clients converge.
-- `dueDate` stays a string to preserve the API contract (`string | null`). New dates are stored at
-  local noon; legacy date-only strings still render on the correct day. `dueTime` is a separate
-  `HH:MM` field, and `repeat` holds the recurrence rule. Completing a recurring task advances
-  `dueDate` rather than setting `completed`.
-- Deleting an auth user cascades to that user's notes, todos, and (because `user_id` is a foreign key)
-  leaves no orphaned rows.
+### `users`
+- `_id`: ObjectId
+- `email`: unique, lowercase
+- `passwordHash`: bcrypt hash (`select: false`, never serialized)
+- `createdAt`, `updatedAt`
 
-### Moving from MongoDB
+### `notes`
+- `_id`: text id (`n_<uuid>`), the same id the API exposes
+- `userId`: owner account id
+- `title`, `content`, `tags[]`, `pinned`, `archived`
+- `createdAt`, `updatedAt` (Date)
+- Indexes: `{ userId, createdAt }`, `{ userId, archived, updatedAt }`, `{ userId, tags }`
 
-This version no longer reads MongoDB. Each row must belong to a Supabase auth user, so old MongoDB
-documents cannot be copied in without a `user_id`. If you need to keep existing data, export the
-collections, add the UUID of the account you signed up with to every record, and insert them into
-`notes` / `todos` (the column names are listed in `supabase/schema.sql`). New accounts otherwise
-start with an empty workspace.
+### `todos`
+- `_id`: text id (`t_<uuid>`)
+- `userId`: owner account id
+- `text`, `priority`, `completed`, `dueDate` (string), `dueTime` (`HH:MM`), `repeat`
+- `completedAt` (Date | null), `createdAt` (Date), `sortOrder` (number)
+- Indexes: `{ userId, sortOrder, createdAt }`, `{ userId, completed, sortOrder }`, `{ userId, dueDate }`
+
+`backend/lib/dto.js` is the only mapping layer between storage and the camelCase API contract with epoch-millisecond timestamps. New todos take `min(sortOrder) - 1`, so creating a task is one read plus one insert without shifting every document. Reorder assigns dense positions with one `bulkWrite` and returns the canonical list so racing clients converge.
+
+---
+
+## Migrating existing Supabase data
+
+The app no longer talks to Supabase at runtime. Passwords cannot be exported from Supabase Auth (hashes are not portable to bcrypt), so **each user must sign up again in MongoDB**. Their notes and todos can then be imported:
+
+1. In the Supabase SQL Editor, export one user's rows as a JSON array (replace the UUID from **Authentication → Users**):
+
+   ```sql
+   select json_agg(n) from public.notes n where n.user_id = '<SUPABASE-USER-UUID>';
+   select json_agg(t) from public.todos t where t.user_id = '<SUPABASE-USER-UUID>';
+   ```
+
+   Save the two JSON values as `notes.json` and `todos.json`.
+
+2. Start the app and create the destination account with the same email.
+
+3. Run the importer from `backend/`:
+
+   ```bash
+   npm run import -- --email you@example.com --notes ../notes.json --todos ../todos.json
+
+   # Validate first without writing:
+   npm run import -- --email you@example.com --notes ../notes.json --todos ../todos.json --dry-run
+   ```
+
+The importer accepts Supabase snake_case (`due_date`, `created_at`) and camelCase records, upserts by the original id (so it is safe to re-run), and scopes every document to the destination account. `--replace --yes` additionally deletes that account's documents that are absent from the files.
+
+Legacy `backend/data/notes.json` and `todos.json` exports can be imported with the same command.
 
 ---
 

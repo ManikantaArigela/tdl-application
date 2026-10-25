@@ -1,9 +1,9 @@
 /**
  * Contract shape guard.
  *
- * The repository layer maps Supabase rows back to the exact key set and value
- * types the JSON store has always produced. These assertions fail loudly if a
- * DTO change ever leaks a snake_case column, a Date, or a new field.
+ * The repository layer maps MongoDB documents back to the exact key set and
+ * value types the JSON store has always produced. These assertions fail loudly
+ * if a DTO change ever leaks `_id`, `userId`, a Date, or a new field.
  */
 const { test, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
@@ -33,7 +33,6 @@ before(async () => {
     authenticate: (req, res, next) => {
       req.userId = 'test-user';
       req.user = { id: 'test-user' };
-      req.supabase = {};
       next();
     },
     checkDatabase: async () => true,

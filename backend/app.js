@@ -1,9 +1,22 @@
 const express = require('express');
 const cors = require('cors');
 
-const { requireAuth } = require('./lib/auth');
-const { checkDatabase: checkSupabase } = require('./lib/supabase');
+const {
+  requireAuth,
+  normalizeEmail,
+  emailLooksValid,
+  passwordLooksValid,
+  hashPassword,
+  verifyPassword,
+  verifyDummyPassword,
+  signAccessToken,
+  MIN_PASSWORD_LENGTH,
+} = require('./lib/auth');
+const { ping: pingDatabase } = require('./db');
 const { mapError } = require('./lib/errors');
+const { toUserDTO } = require('./lib/dto');
+const { createRateLimiter } = require('./lib/rate-limit');
+const { users: defaultUsers } = require('./repositories/users.repo');
 const gemini = require('./lib/gemini');
 const {
   buildPlanPrompt,
@@ -18,26 +31,32 @@ const {
 /**
  * Storage-agnostic application factory.
  *
- * `createRepos(supabase, userId)` returns:
+ * `createRepos(userId)` returns:
  *   notes: { list, create, update, remove }
  *   todos: { list, create, update, remove, reorder }
  *
- * `authenticate` verifies the bearer token and populates `req.userId` and
- * `req.supabase`. Both hooks are injectable so route tests run without Supabase.
+ * `authenticate` verifies the bearer token and populates `req.userId`.
+ * `users` is the account store used by /api/auth. All hooks are injectable so
+ * route tests run without a live MongoDB.
  */
 function createApp({
   createRepos,
   authenticate = requireAuth,
-  checkDatabase = checkSupabase,
+  checkDatabase = pingDatabase,
+  users = defaultUsers,
 } = {}) {
   if (typeof createRepos !== 'function') {
-    throw new Error('createApp requires { createRepos: (supabase, userId) => repos }');
+    throw new Error('createApp requires { createRepos: (userId) => repos }');
   }
   if (typeof authenticate !== 'function') {
     throw new Error('createApp requires an authenticate middleware');
   }
+  if (!users || typeof users.findByEmail !== 'function' || typeof users.create !== 'function') {
+    throw new Error('createApp requires a users store');
+  }
 
   const app = express();
+  app.disable('x-powered-by');
   app.use(cors());
   // Base64 attachments (PDFs) need more room than plain JSON payloads.
   app.use(express.json({ limit: '12mb' }));
@@ -49,11 +68,26 @@ function createApp({
   // Private routes need both a verified user and user-scoped repositories.
   const withRepos = (req, res, next) => {
     try {
-      req.repos = createRepos(req.supabase, req.userId);
+      req.repos = createRepos(req.userId);
       return next();
     } catch (error) {
       return next(error);
     }
+  };
+
+  // Brute-force damping for credential endpoints. Per-process only.
+  const authLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
+  });
+  const limitAuth = (req, res, next) => {
+    const key = `${req.ip}:${normalizeEmail(req.body?.email)}`;
+    const retryAfter = authLimiter(key);
+    if (retryAfter) {
+      res.set('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Too many attempts. Wait a few minutes and try again.' });
+    }
+    return next();
   };
 
   // ---------- Public ----------
@@ -66,14 +100,14 @@ function createApp({
         console.error('Health check failed:', error.message);
         return res.status(503).json({
           status: 'degraded',
-          storage: 'supabase',
+          storage: 'mongodb',
           error: 'Database unavailable',
           timestamp: new Date().toISOString(),
         });
       }
       return res.json({
         status: 'ok',
-        storage: 'supabase',
+        storage: 'mongodb',
         timestamp: new Date().toISOString(),
       });
     })
@@ -85,6 +119,86 @@ function createApp({
       res.json({ configured: gemini.isConfigured(), model: gemini.getModel() });
     })
   );
+
+  // ---------- Authentication ----------
+  app.post(
+    '/api/auth/signup',
+    limitAuth,
+    wrap(async (req, res) => {
+      const email = normalizeEmail(req.body?.email);
+      const password = req.body?.password;
+
+      if (!emailLooksValid(email)) {
+        return res.status(400).json({ error: 'Enter a valid email address.' });
+      }
+      if (!passwordLooksValid(password)) {
+        return res
+          .status(400)
+          .json({ error: `Use a password with at least ${MIN_PASSWORD_LENGTH} characters.` });
+      }
+
+      const existing = await users.findByEmail(email);
+      if (existing) {
+        return res.status(409).json({ error: 'An account with that email already exists.' });
+      }
+
+      const passwordHash = await hashPassword(password);
+      const user = await users.create({ email, passwordHash });
+
+      return res.status(201).json({
+        token: signAccessToken(user),
+        user: toUserDTO(user),
+      });
+    })
+  );
+
+  app.post(
+    '/api/auth/login',
+    limitAuth,
+    wrap(async (req, res) => {
+      const email = normalizeEmail(req.body?.email);
+      const password = req.body?.password;
+
+      if (!emailLooksValid(email) || typeof password !== 'string' || !password) {
+        return res.status(400).json({ error: 'Enter your email and password.' });
+      }
+
+      const user = await users.findByEmail(email, { withPassword: true });
+
+      // Always run a bcrypt comparison so response timing does not reveal
+      // whether the account exists.
+      if (!user) {
+        await verifyDummyPassword(password);
+        return res.status(401).json({ error: 'Incorrect email or password.' });
+      }
+
+      const valid = await verifyPassword(password, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ error: 'Incorrect email or password.' });
+      }
+
+      return res.json({
+        token: signAccessToken(user),
+        user: toUserDTO(user),
+      });
+    })
+  );
+
+  app.get(
+    '/api/auth/me',
+    authenticate,
+    wrap(async (req, res) => {
+      const user = await users.findById(req.userId);
+      if (!user) {
+        return res.status(401).json({ error: 'Your account no longer exists.' });
+      }
+      return res.json({ user: toUserDTO(user) });
+    })
+  );
+
+  // JWTs are stateless. The client discards its token; this endpoint exists so
+  // clients have one explicit place to end a session.
+  app.post('/api/auth/logout', (req, res) => res.json({ success: true }));
 
   // ---------- Authenticated scopes ----------
   app.use('/api/notes', authenticate, withRepos);

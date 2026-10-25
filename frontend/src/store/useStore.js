@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { api } from '../api';
 import { advanceDueDate } from '../lib/format';
 import { showSystemNotification } from '../lib/notifications';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/auth';
 
 // The app ships with a single light theme and a single brand color. Clear any
 // preference left behind by the old theme/accent switchers so it cannot
@@ -37,8 +37,8 @@ const initialPermission =
 
 const initialNotifyEnabled = readPreference('tdl.notify', 'on') !== 'off';
 
-// Supabase asks auth callbacks not to call back into its client synchronously.
-let authSubscription = null;
+// One global listener is enough: the API client fires it when a token expires.
+let authListenerAttached = false;
 
 const emptyWorkspace = {
   notes: [],
@@ -62,18 +62,20 @@ const emptyWorkspace = {
 
 function authMessage(error) {
   const message = error?.message || 'Something went wrong. Try again.';
-  if (/invalid login credentials/i.test(message)) return 'Incorrect email or password.';
-  if (/email not confirmed/i.test(message)) {
-    return 'Confirm your email first. Check your inbox for the link.';
+  if (/invalid login credentials|incorrect email or password/i.test(message)) {
+    return 'Incorrect email or password.';
   }
-  if (/user already registered/i.test(message)) {
+  if (/already exists/i.test(message)) {
     return 'An account with that email already exists. Sign in instead.';
   }
-  if (/password should be at least/i.test(message)) {
-    return 'Use a password with at least 6 characters.';
+  if (/at least \d+ characters/i.test(message)) {
+    return 'Use a password with at least 8 characters.';
   }
-  if (/rate limit|too many/i.test(message)) {
-    return 'Too many attempts. Wait a minute and try again.';
+  if (/too many|rate limit/i.test(message)) {
+    return 'Too many attempts. Wait a few minutes and try again.';
+  }
+  if (/could not reach|failed to fetch|network/i.test(message)) {
+    return 'Could not reach the API. Start the backend on port 5001, then try again.';
   }
   return message;
 }
@@ -114,74 +116,50 @@ export const useStore = create((set, get) => ({
 
   // ---- Auth ----
   initAuth: async () => {
-    if (authSubscription) return;
+    if (authListenerAttached) return;
+    authListenerAttached = true;
 
-    if (!supabase) {
-      set({
-        authReady: true,
-        authInitializing: false,
-        authError:
-          'Authentication is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to frontend/.env, then restart the dev server.',
+    // The API client clears the stored token and fires this when a request
+    // returns 401 (expired or revoked session).
+    if (typeof window !== 'undefined') {
+      window.addEventListener('nova:unauthorized', () => {
+        set({
+          ...emptyWorkspace,
+          session: null,
+          user: null,
+          authBusy: false,
+          authReady: true,
+          authError: 'Your session has expired. Please sign in again.',
+          authNotice: null,
+        });
       });
-      return;
     }
 
     set({ authInitializing: true });
 
     try {
-      authSubscription = supabase.auth.onAuthStateChange((event, session) => {
-        const previousUserId = get().user?.id;
-        const nextUser = session?.user ?? null;
-
+      const user = await auth.me();
+      if (!user) {
         set({
-          session: session ?? null,
-          user: nextUser,
+          session: null,
+          user: null,
           authReady: true,
           authInitializing: false,
         });
+        return;
+      }
 
-        if (!session) {
-          set({ ...emptyWorkspace, authBusy: false });
-          return;
-        }
-
-        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
-
-        const switchedUser = previousUserId && previousUserId !== nextUser?.id;
-        if (switchedUser) {
-          set({ notes: [], todos: [], loaded: false, selectedNoteId: null });
-        }
-
-        const needsLoad = !get().loaded || switchedUser;
-        if (needsLoad) {
-          // Defer so we never re-enter Supabase while it is applying auth state.
-          setTimeout(() => get().init(), 0);
-        }
-      });
-    } catch (error) {
       set({
+        session: { user },
+        user,
         authReady: true,
         authInitializing: false,
-        authError: authMessage(error),
       });
-      return;
-    }
-
-    // Older auth-js versions may not emit INITIAL_SESSION; this is a fallback.
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (!get().authReady) {
-        const session = data.session ?? null;
-        set({
-          session,
-          user: session?.user ?? null,
-          authReady: true,
-          authInitializing: false,
-        });
-        if (session) get().init();
-      }
+      await get().init();
     } catch (error) {
       set({
+        session: null,
+        user: null,
         authReady: true,
         authInitializing: false,
         authError: authMessage(error),
@@ -190,24 +168,16 @@ export const useStore = create((set, get) => ({
   },
 
   signIn: async (email, password) => {
-    if (!supabase) {
-      const message = 'Authentication is not configured.';
-      set({ authError: message });
-      return { error: { message } };
-    }
-
     set({ authBusy: true, authError: null, authNotice: null });
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+      const { user } = await auth.signIn(email.trim(), password);
+      set({
+        session: { user },
+        user,
+        authBusy: false,
+        authError: null,
       });
-
-      if (error) {
-        set({ authBusy: false, authError: authMessage(error) });
-        return { error };
-      }
-      set({ authBusy: false });
+      await get().init();
       return { error: null };
     } catch (error) {
       set({ authBusy: false, authError: authMessage(error) });
@@ -216,35 +186,16 @@ export const useStore = create((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    if (!supabase) {
-      const message = 'Authentication is not configured.';
-      set({ authError: message });
-      return { error: { message } };
-    }
-
     set({ authBusy: true, authError: null, authNotice: null });
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { emailRedirectTo: window.location.origin },
+      const { user } = await auth.signUp(email.trim(), password);
+      set({
+        session: { user },
+        user,
+        authBusy: false,
+        authError: null,
       });
-
-      if (error) {
-        set({ authBusy: false, authError: authMessage(error) });
-        return { error };
-      }
-
-      set({ authBusy: false });
-
-      if (!data.session) {
-        set({
-          authNotice:
-            'Account created. Check your email for the confirmation link, then sign in.',
-        });
-        return { error: null, needsConfirmation: true };
-      }
-
+      await get().init();
       return { error: null, needsConfirmation: false };
     } catch (error) {
       set({ authBusy: false, authError: authMessage(error) });
@@ -255,7 +206,7 @@ export const useStore = create((set, get) => ({
   signOut: async () => {
     set({ authBusy: true });
     try {
-      if (supabase) await supabase.auth.signOut();
+      await auth.signOut();
     } catch {
       /* clear locally even if the network call fails */
     }

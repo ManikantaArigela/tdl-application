@@ -27,12 +27,12 @@ after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-test('health returns 503 when Supabase is unreachable', async () => {
+test('health returns 503 when MongoDB is unreachable', async () => {
   const response = await fetch(`${baseUrl}/api/health`);
   const body = await response.json();
 
   assert.equal(response.status, 503);
   assert.equal(body.status, 'degraded');
-  assert.equal(body.storage, 'supabase');
+  assert.equal(body.storage, 'mongodb');
   assert.equal(body.error, 'Database unavailable');
 });
