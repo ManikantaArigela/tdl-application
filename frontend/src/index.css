@@ -45,6 +45,9 @@
 
   html {
     scroll-behavior: smooth;
+    /* Stop Safari from inflating text in landscape and kill the gray tap flash. */
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
@@ -56,6 +59,8 @@
     font-feature-settings: 'ss01', 'cv11';
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+    /* Feels like an app: no accidental pull-to-refresh bounce over the workspace. */
+    overscroll-behavior-y: contain;
   }
 
   h1,
@@ -194,4 +199,85 @@
 
 .text-pretty {
   text-wrap: pretty;
+}
+
+/* Compact density: opt-in via Settings, applied on the app root. */
+[data-density='compact'] {
+  --density-gap: 0.75rem;
+}
+[data-density='compact'] .panel-raised {
+  @apply p-3.5;
+}
+[data-density='compact'] .nav-item {
+  @apply py-1.5;
+}
+[data-density='compact'] main {
+  padding-bottom: calc(9.5rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  [data-density='compact'] main {
+    padding-bottom: 6rem;
+  }
+}
+[data-density='compact'] .mt-6 {
+  @apply mt-4;
+}
+
+
+/* ---- Device friendliness -------------------------------------------------
+   Touch devices and narrow viewports get a 16px form font (iOS Safari
+   auto-zooms smaller inputs, which breaks layout), 44px-high controls, and
+   roomier popup items — Apple's minimum touch target. Wide mouse layouts
+   keep the compact desktop look. */
+@media (pointer: coarse), (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 1rem !important;
+  }
+
+  .trigger {
+    height: 2.75rem;
+  }
+
+  [role='option'] {
+    min-height: 2.75rem;
+  }
+
+  [data-daykey] {
+    min-height: 2.5rem;
+  }
+
+  /* Comfortable touch targets for task controls. min-* overrides the utility
+     sizes only on touch devices, leaving desktop layouts untouched. */
+  .icon-btn {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  /* Card actions sit in a tight footer row; 28px matches the compact mobile
+     card without inflating it. */
+  .card-action {
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+  }
+
+  main [role='checkbox'] {
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+  }
+
+  main button[type='submit'] {
+    min-height: 2.75rem;
+  }
+}
+
+/* Buttons respond instantly to taps (no double-tap-zoom wait). */
+button,
+a,
+[role='button'],
+[role='option'],
+[role='radio'],
+[data-daykey] {
+  touch-action: manipulation;
 }

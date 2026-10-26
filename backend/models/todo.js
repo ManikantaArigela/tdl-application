@@ -21,6 +21,8 @@ const todoSchema = new mongoose.Schema(
       enum: [...REPEATS],
       default: 'none',
     },
+    // Planned length in whole minutes; null when unset.
+    duration: { type: Number, default: null, min: 0, max: 600 },
     completedAt: { type: Date, default: null },
     createdAt: { type: Date, required: true },
     // Sparse manual order: new todos go above the current top without shifting.

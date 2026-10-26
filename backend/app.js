@@ -15,6 +15,7 @@ const {
 const { ping: pingDatabase } = require('./db');
 const { mapError } = require('./lib/errors');
 const { toUserDTO } = require('./lib/dto');
+const { sanitizeProfile } = require('./lib/sanitize');
 const { createRateLimiter } = require('./lib/rate-limit');
 const { users: defaultUsers } = require('./repositories/users.repo');
 const gemini = require('./lib/gemini');
@@ -197,6 +198,27 @@ function createApp({
         return res.status(401).json({ error: 'Your account no longer exists.' });
       }
       return res.json({ user: toUserDTO(user) });
+    })
+  );
+
+  // Editable profile. Email/password live in /api/auth; only display fields here.
+  app.put(
+    '/api/profile',
+    authenticate,
+    wrap(async (req, res) => {
+      if (typeof users.update !== 'function') {
+        return res.status(501).json({ error: 'Profile updates are not available.' });
+      }
+      const current = await users.findById(req.userId);
+      if (!current) {
+        return res.status(401).json({ error: 'Your account no longer exists.' });
+      }
+      const profile = sanitizeProfile(req.body ?? {}, current);
+      const updated = await users.update(req.userId, profile);
+      if (!updated) {
+        return res.status(401).json({ error: 'Your account no longer exists.' });
+      }
+      return res.json({ user: toUserDTO(updated) });
     })
   );
 

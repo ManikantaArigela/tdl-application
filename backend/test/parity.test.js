@@ -23,6 +23,7 @@ const TODO_KEYS = [
   'dueDate',
   'dueTime',
   'repeat',
+  'duration',
   'completedAt',
   'createdAt',
 ];

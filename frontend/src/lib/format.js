@@ -125,6 +125,21 @@ export function isOverdue(value) {
   return date.getTime() < endOfToday.getTime() && dayKey(date) !== dayKey(new Date());
 }
 
-export function plural(count, singular, pluralForm = `${singular}s`) {
-  return count === 1 ? singular : pluralForm;
+/** Date inputs give YYYY-MM-DD; store noon so timezones can't shift the day. */
+export function toDueStamp(value) {
+  if (!value) return null;
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+/** Inverse of toDueStamp: a local YYYY-MM-DD for <input type="date">. */
+export function dueInputValue(value) {
+  if (!value) return '';
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function plural(count, singular, pluralForm = `${singular}s`) {  return count === 1 ? singular : pluralForm;
 }

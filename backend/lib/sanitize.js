@@ -56,6 +56,34 @@ const normalizeDueDate = (value, fallback = null) => {
 const normalizeTimestamp = (value, fallback = null) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 
+/** Task duration in whole minutes; null/"" clears it. */
+const normalizeDuration = (value, fallback = null) => {
+  if (value === undefined) return fallback;
+  if (value === null || value === '') return null;
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes)) return fallback;
+  return Math.min(600, Math.max(0, Math.round(minutes)));
+};
+
+/** Editable profile fields. Unknown avatar ids fall back to ''. */
+const AVATAR_PATTERN = /^[a-z0-9-]{1,64}$/;
+
+function sanitizeProfile(input = {}, base = {}) {
+  return {
+    name:
+      input.name !== undefined
+        ? clampString(input.name, 80).trim()
+        : (base.name ?? '').toString(),
+    bio: input.bio !== undefined ? clampString(input.bio, 280) : (base.bio ?? '').toString(),
+    avatar:
+      input.avatar !== undefined
+        ? (typeof input.avatar === 'string' && AVATAR_PATTERN.test(input.avatar.trim())
+            ? input.avatar.trim()
+            : '')
+        : (base.avatar ?? '').toString(),
+  };
+}
+
 function sanitizeNote(input = {}, base = {}) {
   return {
     title: input.title !== undefined ? clampString(input.title, LIMITS.title) : base.title ?? '',
@@ -82,6 +110,7 @@ function sanitizeTodo(input = {}, base = {}) {
     dueTime: normalizeTime(input.dueTime, base.dueTime ?? null),
     repeat:
       input.repeat !== undefined ? normalizeRepeat(input.repeat, base.repeat) : base.repeat ?? 'none',
+    duration: normalizeDuration(input.duration, base.duration ?? null),
     completedAt: completed
       ? normalizeTimestamp(input.completedAt, base.completedAt ?? Date.now())
       : null,
@@ -99,6 +128,9 @@ module.exports = {
   normalizeTime,
   normalizeDueDate,
   normalizeTimestamp,
+  normalizeDuration,
+  AVATAR_PATTERN,
+  sanitizeProfile,
   sanitizeNote,
   sanitizeTodo,
 };

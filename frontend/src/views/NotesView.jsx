@@ -23,10 +23,10 @@ export default function NotesView({ starred = false, archive = false } = {}) {
       notes.filter((note) => {
         if (archive ? !note.archived : note.archived) return false;
         if (!query) return true;
+        // Search matches titles and content only — never tags.
         return (
           (note.title ?? '').toLowerCase().includes(query) ||
-          (note.content ?? '').toLowerCase().includes(query) ||
-          (note.tags ?? []).some((tag) => tag.toLowerCase().includes(query))
+          (note.content ?? '').toLowerCase().includes(query)
         );
       }),
     [notes, query, archive]

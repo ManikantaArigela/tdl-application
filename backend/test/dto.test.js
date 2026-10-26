@@ -77,12 +77,33 @@ test('MongoDB notes map _id to id and drop account internals', () => {
   assert.equal(note.userId, undefined);
 });
 
-test('user documents expose only id, email, and createdAt', () => {
+test('user documents expose the profile plus account basics', () => {
   assert.deepEqual(toUserDTO({ _id: 'u_1', email: 'a@example.com', passwordHash: 'secret' }), {
     id: 'u_1',
     email: 'a@example.com',
+    name: '',
+    bio: '',
+    avatar: '',
     createdAt: null,
   });
+
+  const profiled = toUserDTO({
+    _id: 'u_2',
+    email: 'b@example.com',
+    name: 'Ada',
+    bio: 'Builder',
+    avatar: 'sunrise',
+    created_at: ISO,
+  });
+  assert.deepEqual(profiled, {
+    id: 'u_2',
+    email: 'b@example.com',
+    name: 'Ada',
+    bio: 'Builder',
+    avatar: 'sunrise',
+    createdAt: MS,
+  });
+  assert.equal(profiled.passwordHash, undefined);
 });
 
 test('todo rows map from snake_case to the API shape', () => {
@@ -94,6 +115,7 @@ test('todo rows map from snake_case to the API shape', () => {
     due_date: '2026-10-24T12:00:00.000Z',
     due_time: '09:30',
     repeat: 'daily',
+    duration: 45,
     completed_at: ISO,
     created_at: ISO,
   });
@@ -106,6 +128,7 @@ test('todo rows map from snake_case to the API shape', () => {
     dueDate: '2026-10-24T12:00:00.000Z',
     dueTime: '09:30',
     repeat: 'daily',
+    duration: 45,
     completedAt: MS,
     createdAt: MS,
   });
@@ -128,6 +151,7 @@ test('todo rows tolerate null due fields', () => {
   assert.equal(todo.completedAt, null);
   assert.equal(todo.priority, 'medium');
   assert.equal(todo.repeat, 'none');
+  assert.equal(todo.duration, null);
 });
 
 test('database errors map to client-safe statuses', () => {

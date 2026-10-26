@@ -47,6 +47,8 @@ const toTodoDTO = (doc = {}) => {
     dueDate: typeof dueDate === 'string' && dueDate ? dueDate : null,
     dueTime: typeof dueTime === 'string' && dueTime ? dueTime : null,
     repeat: typeof doc.repeat === 'string' ? doc.repeat : 'none',
+    duration:
+      typeof doc.duration === 'number' && Number.isFinite(doc.duration) ? doc.duration : null,
     completedAt: toMs(pick(doc, 'completedAt', 'completed_at')),
     createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
   };
@@ -55,6 +57,9 @@ const toTodoDTO = (doc = {}) => {
 const toUserDTO = (doc = {}) => ({
   id: String(pick(doc, '_id', 'id') ?? ''),
   email: typeof doc.email === 'string' ? doc.email : '',
+  name: typeof doc.name === 'string' ? doc.name : '',
+  bio: typeof doc.bio === 'string' ? doc.bio : '',
+  avatar: typeof doc.avatar === 'string' ? doc.avatar : '',
   createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
 });
 

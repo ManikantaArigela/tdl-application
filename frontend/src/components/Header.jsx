@@ -6,7 +6,6 @@ import {
   BellRing,
   CheckCheck,
   Clock3,
-  Menu,
   Search,
   Sparkles,
   Wand2,
@@ -34,8 +33,6 @@ const statusTone = (permission) => {
 export default function Header() {
   const searchQuery = useStore((s) => s.searchQuery);
   const setSearchQuery = useStore((s) => s.setSearchQuery);
-  const sidebarOpen = useStore((s) => s.sidebarOpen);
-  const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const toggleAIPanel = useStore((s) => s.toggleAIPanel);
   const aiPanelOpen = useStore((s) => s.aiPanelOpen);
   const setAIPlannerOpen = useStore((s) => s.setAIPlannerOpen);
@@ -148,17 +145,7 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-3 border-b border-line/60 bg-canvas/85 px-4 py-3 backdrop-blur-md md:-mx-8 md:px-8">
-      <button
-        type="button"
-        className="icon-btn md:hidden"
-        onClick={() => setSidebarOpen(true)}
-        aria-label="Open navigation"
-        aria-expanded={sidebarOpen}
-      >
-        <Menu className="h-5 w-5" aria-hidden="true" />
-      </button>
-
+    <header className="sticky top-0 z-20 -mx-[calc(1rem+env(safe-area-inset-left))] flex flex-wrap items-center gap-3 border-b border-line/60 bg-canvas/85 px-[calc(1rem+env(safe-area-inset-left))] py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md md:-mx-8 md:px-8 md:pt-3">
       <div className="relative min-w-0 flex-1 sm:max-w-md">
         <Search
           className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"

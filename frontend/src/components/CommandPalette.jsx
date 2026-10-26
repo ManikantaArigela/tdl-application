@@ -13,6 +13,7 @@ import {
   Search,
   Sparkles,
   Star,
+  UserRound,
   Wand2,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -83,6 +84,7 @@ export default function CommandPalette() {
     { id: 'go-starred', label: 'Go to Starred', hint: 'Pinned notes', icon: Star, run: go('starred') },
     { id: 'go-archive', label: 'Go to Archive', hint: 'Archived notes', icon: Archive, run: go('archive') },
     { id: 'go-analytics', label: 'Go to Analytics', hint: 'Weekly progress', icon: BarChart3, run: go('analytics') },
+    { id: 'go-profile', label: 'Go to Profile & Settings', hint: 'Name, bio, and preferences', icon: UserRound, run: go('profile') },
     { id: 'insights', label: 'Open insights', hint: 'Review your notes and tasks', icon: Sparkles, run: () => toggleAIPanel() },
     { id: 'export', label: 'Export as Markdown', hint: 'Download notes and todos', icon: Download, run: () => setExportOpen(true) },
   ];

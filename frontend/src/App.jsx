@@ -5,9 +5,11 @@ import { Plus } from 'lucide-react';
 import { useStore } from './store/useStore';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import MobileNav from './components/MobileNav';
 import NotesView from './views/NotesView';
 import TodosView from './views/TodosView';
 import AnalyticsView from './views/AnalyticsView';
+import ProfileView from './views/ProfileView';
 import NoteEditor from './components/NoteEditor';
 import CommandPalette from './components/CommandPalette';
 import QuickCapture from './components/QuickCapture';
@@ -89,7 +91,8 @@ export default function App() {
   const aiSummaryOpen = useStore((s) => s.aiSummaryOpen);
   const exportOpen = useStore((s) => s.exportOpen);
   const planDialogOpen = useStore((s) => s.planDialogOpen);
-  const sidebarOpen = useStore((s) => s.sidebarOpen);
+  const reduceMotion = useStore((s) => s.settings.reduceMotion);
+  const density = useStore((s) => s.settings.density);
 
   const note = selectedNoteId ? notes.find((n) => n.id === selectedNoteId) : null;
 
@@ -137,7 +140,6 @@ export default function App() {
         else if (state.aiPanelOpen) state.setAIPanelOpen(false);
         else if (state.exportOpen) state.setExportOpen(false);
         else if (state.planDialogOpen) state.setPlanDialogOpen(false);
-        else if (state.sidebarOpen) state.setSidebarOpen(false);
         return;
       }
 
@@ -188,8 +190,8 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <MotionConfig reducedMotion="user">
-        <div className="min-h-dvh bg-canvas text-ink">
+      <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
+        <div data-density={density} className="min-h-dvh bg-canvas text-ink">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-panel focus:px-4 focus:py-2 focus:text-sm focus:text-ink focus:shadow-lift"
@@ -200,10 +202,14 @@ export default function App() {
         <React.Suspense fallback={null}>
           <AmbientBackground />
         </React.Suspense>
+        <MobileNav />
         <Sidebar />
 
         <div className="md:pl-64">
-          <main id="main" className="mx-auto w-full max-w-6xl px-4 pb-28 md:px-8">
+          <main
+            id="main"
+            className="mx-auto w-full max-w-6xl px-[calc(1rem+env(safe-area-inset-left))] pb-[calc(9.5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))]"
+          >
             <Header />
 
             {syncError && (
@@ -249,6 +255,7 @@ export default function App() {
                     {activeView === 'starred' && <NotesView starred />}
                     {activeView === 'archive' && <NotesView archive />}
                     {activeView === 'analytics' && <AnalyticsView />}
+                    {activeView === 'profile' && <ProfileView />}
                   </motion.div>
                 </AnimatePresence>
               )}
@@ -256,8 +263,11 @@ export default function App() {
           </main>
         </div>
 
-        {!sidebarOpen && (
-          <div className="fixed bottom-5 right-5 z-30 md:bottom-8 md:right-8">
+        <div
+          className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 md:bottom-8 md:right-8 ${
+            activeView === 'todos' || activeView === 'today' ? 'hidden md:block' : ''
+          }`}
+        >
             <motion.span
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 rounded-full bg-accent/25 blur-lg"
@@ -270,14 +280,13 @@ export default function App() {
               whileHover={{ scale: 1.07, rotate: 90 }}
               whileTap={{ scale: 0.94 }}
               transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-              className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-glow"
+              className="relative flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-fg shadow-glow md:h-14 md:w-14"
               aria-label="Quick capture a note or task"
               aria-keyshortcuts="Control+J"
             >
-              <Plus className="h-6 w-6" aria-hidden="true" />
+              <Plus className="h-5 w-5 md:h-6 md:w-6" aria-hidden="true" />
             </motion.button>
           </div>
-        )}
 
         <AnimatePresence>
           {commandPaletteOpen && <CommandPalette key="command-palette" />}

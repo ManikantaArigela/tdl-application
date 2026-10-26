@@ -55,6 +55,9 @@ export const api = {
   deleteTodo: (id) => request(`/todos/${id}`, { method: 'DELETE' }),
   reorderTodos: (todos) => request('/todos/reorder', { method: 'PUT', body: JSON.stringify({ todos }) }),
 
+  // Profile
+  updateProfile: (profile) => request('/profile', { method: 'PUT', body: JSON.stringify(profile) }),
+
   // AI (Gemini runs server-side; the key never reaches the browser)
   getAIStatus: () => request('/ai/status'),
   generatePlan: (payload) => request('/ai/plan', { method: 'POST', body: JSON.stringify(payload) }),

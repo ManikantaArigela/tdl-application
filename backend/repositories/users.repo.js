@@ -20,6 +20,16 @@ const users = {
     return User.findById(id).lean();
   },
 
+  /** Profile edits only; email and password hash are immutable here. */
+  async update(id, input) {
+    const doc = await User.findByIdAndUpdate(
+      id,
+      { $set: input },
+      { new: true, runValidators: true }
+    ).lean();
+    return doc;
+  },
+
   async removeById(id) {
     const result = await User.deleteOne({ _id: id });
     return result.deletedCount > 0;

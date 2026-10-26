@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { api } from '../api';
-import { advanceDueDate } from '../lib/format';
+import { advanceDueDate, dayKey } from '../lib/format';
 import { showSystemNotification } from '../lib/notifications';
 import { auth } from '../lib/auth';
 import { normalizePlan } from '../lib/plans';
+import { loadSettings, saveSettings, clearSettings } from '../lib/settings';
 
 // The app ships with a single light theme and a single brand color. Clear any
 // preference left behind by the old theme/accent switchers so it cannot
@@ -79,6 +80,8 @@ function writePlanUsage(usage) {
 // One global listener is enough: the API client fires it when a token expires.
 let authListenerAttached = false;
 
+const emptyProfile = { name: '', bio: '', avatar: '' };
+
 const emptyWorkspace = {
   notes: [],
   todos: [],
@@ -98,6 +101,7 @@ const emptyWorkspace = {
   aiSummaryOpen: false,
   exportOpen: false,
   planDialogOpen: false,
+  profile: emptyProfile,
 };
 
 function authMessage(error) {
@@ -118,6 +122,15 @@ function authMessage(error) {
     return 'Could not reach the API. Start the backend on port 5001, then try again.';
   }
   return message;
+}
+
+/** The API user DTO carries the persisted profile fields. */
+function profileOf(user) {
+  return {
+    name: typeof user?.name === 'string' ? user.name : '',
+    bio: typeof user?.bio === 'string' ? user.bio : '',
+    avatar: typeof user?.avatar === 'string' ? user.avatar : '',
+  };
 }
 
 
@@ -155,6 +168,10 @@ export const useStore = create((set, get) => ({
   pendingPlan: readPreference(PENDING_PLAN_KEY, null),
   plan: readPlan(),
   planUsage: readPlanUsage(),
+  profile: emptyProfile,
+  profileBusy: false,
+  profileError: null,
+  settings: loadSettings(),
   notifyEnabled: initialNotifyEnabled,
   notificationPermission: initialPermission,
 
@@ -196,6 +213,7 @@ export const useStore = create((set, get) => ({
       set({
         session: { user },
         user,
+        profile: profileOf(user),
         authReady: true,
         authInitializing: false,
       });
@@ -218,6 +236,7 @@ export const useStore = create((set, get) => ({
       set({
         session: { user },
         user,
+        profile: profileOf(user),
         authBusy: false,
         authError: null,
       });
@@ -246,6 +265,7 @@ export const useStore = create((set, get) => ({
       set({
         session: { user },
         user,
+        profile: profileOf(user),
         authBusy: false,
         authError: null,
         ...(pending ? { plan: nextPlan, pendingPlan: null } : {}),
@@ -505,6 +525,53 @@ export const useStore = create((set, get) => ({
   },
   clearSyncError: () => set({ syncError: null }),
 
+  // ---- Profile ----
+  updateProfile: async (input) => {
+    set({ profileBusy: true, profileError: null });
+    try {
+      const { user } = await api.updateProfile(input);
+      set({
+        user,
+        profile: profileOf(user),
+        profileBusy: false,
+        profileError: null,
+      });
+      return { error: null };
+    } catch (err) {
+      set({ profileBusy: false, profileError: err.message });
+      return { error: err };
+    }
+  },
+  clearProfileError: () => set({ profileError: null }),
+
+  // ---- Settings (device-level, persisted in localStorage) ----
+  setSettings: (patch) => {
+    set((state) => {
+      const next = { ...state.settings, ...patch };
+      saveSettings(next);
+      return { settings: next };
+    });
+  },
+  /** Privacy: wipe every local preference (settings, plan, notify flag). */
+  clearLocalPreferences: () => {
+    clearSettings();
+    try {
+      localStorage.removeItem(PLAN_KEY);
+      localStorage.removeItem(PLAN_USAGE_KEY);
+      localStorage.removeItem(PENDING_PLAN_KEY);
+      localStorage.removeItem('tdl.notify');
+    } catch {
+      /* ignore */
+    }
+    set({
+      settings: loadSettings(),
+      plan: 'free',
+      planUsage: readPlanUsage(),
+      pendingPlan: null,
+      notifyEnabled: true,
+    });
+  },
+
   // ---- Notifications ----
   setNotifyEnabled: (enabled) => {
     storePreference('tdl.notify', enabled ? 'on' : 'off');
@@ -549,10 +616,10 @@ export const useStore = create((set, get) => ({
     return notes.filter((n) => {
       if (n.archived) return false;
       if (!q) return true;
+      // Search matches note titles and content only — never tags.
       return (
         (n.title ?? '').toLowerCase().includes(q) ||
-        (n.content ?? '').toLowerCase().includes(q) ||
-        (n.tags ?? []).some((t) => t.toLowerCase().includes(q))
+        (n.content ?? '').toLowerCase().includes(q)
       );
     });
   },
@@ -564,8 +631,7 @@ export const useStore = create((set, get) => ({
       if (!q) return true;
       return (
         (n.title ?? '').toLowerCase().includes(q) ||
-        (n.content ?? '').toLowerCase().includes(q) ||
-        (n.tags ?? []).some((t) => t.toLowerCase().includes(q))
+        (n.content ?? '').toLowerCase().includes(q)
       );
     });
   },
@@ -580,6 +646,10 @@ export const useStore = create((set, get) => ({
   },
   get completedTodos() {
     return get().todos.filter((t) => t.completed);
+  },
+  get completedToday() {
+    const today = dayKey(Date.now());
+    return get().todos.filter((t) => t.completed && t.completedAt && dayKey(t.completedAt) === today);
   },
   get streak() {
     const days = new Set(
