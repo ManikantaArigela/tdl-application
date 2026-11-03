@@ -44,15 +44,23 @@ async function request(path, options = {}) {
 export const api = {
   // Notes
   getNotes: () => request('/notes'),
+  getTrashedNotes: () => request('/notes/trash'),
   createNote: (note) => request('/notes', { method: 'POST', body: JSON.stringify(note) }),
   updateNote: (id, note) => request(`/notes/${id}`, { method: 'PUT', body: JSON.stringify(note) }),
   deleteNote: (id) => request(`/notes/${id}`, { method: 'DELETE' }),
+  restoreNote: (id) => request(`/notes/${id}/restore`, { method: 'POST' }),
+  permanentlyDeleteNote: (id) => request(`/notes/${id}/permanent`, { method: 'DELETE' }),
+  emptyNoteTrash: () => request('/notes/trash', { method: 'DELETE' }),
 
   // Todos
   getTodos: () => request('/todos'),
+  getTrashedTodos: () => request('/todos/trash'),
   createTodo: (todo) => request('/todos', { method: 'POST', body: JSON.stringify(todo) }),
   updateTodo: (id, todo) => request(`/todos/${id}`, { method: 'PUT', body: JSON.stringify(todo) }),
   deleteTodo: (id) => request(`/todos/${id}`, { method: 'DELETE' }),
+  restoreTodo: (id) => request(`/todos/${id}/restore`, { method: 'POST' }),
+  permanentlyDeleteTodo: (id) => request(`/todos/${id}/permanent`, { method: 'DELETE' }),
+  emptyTodoTrash: () => request('/todos/trash', { method: 'DELETE' }),
   reorderTodos: (todos) => request('/todos/reorder', { method: 'PUT', body: JSON.stringify({ todos }) }),
 
   // Profile

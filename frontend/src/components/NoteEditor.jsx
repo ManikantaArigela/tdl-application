@@ -4,8 +4,12 @@ import {
   Archive,
   ArchiveRestore,
   ArrowLeft,
+  Columns,
   Crown,
+  Eye,
+  ListChecks,
   Loader2,
+  Pencil,
   Pin,
   Save,
   ScrollText,
@@ -20,9 +24,20 @@ import { api } from '../api';
 
 const AUTOSAVE_MS = 700;
 
+const VIEW_MODES = [
+  { id: 'write', label: 'Write', icon: Pencil },
+  { id: 'split', label: 'Split', icon: Columns },
+  { id: 'preview', label: 'Preview', icon: Eye },
+];
+
+// Markdown tooling is only needed once preview/split is opened, so keep it out
+// of the editor's initial chunk.
+const MarkdownPreview = React.lazy(() => import('./MarkdownPreview'));
+
 export default function NoteEditor({ note }) {
   const updateNote = useStore((s) => s.updateNote);
   const deleteNote = useStore((s) => s.deleteNote);
+  const createTaskFromNote = useStore((s) => s.createTaskFromNote);
   const togglePin = useStore((s) => s.togglePin);
   const toggleArchive = useStore((s) => s.toggleArchive);
   const selectNote = useStore((s) => s.selectNote);
@@ -34,11 +49,17 @@ export default function NoteEditor({ note }) {
   const [title, setTitle] = React.useState(note.title ?? '');
   const [content, setContent] = React.useState(note.content ?? '');
   const [tagsText, setTagsText] = React.useState((note.tags ?? []).join(', '));
+  const [viewMode, setViewMode] = React.useState('write');
   const [status, setStatus] = React.useState('idle');
   const [aiMode, setAiMode] = React.useState(null);
   const [aiStatus, setAiStatus] = React.useState('idle');
   const [aiResult, setAiResult] = React.useState('');
   const [aiError, setAiError] = React.useState('');
+  const [taskBusy, setTaskBusy] = React.useState(false);
+
+  // Rendering Markdown on every keystroke can get expensive on long notes.
+  // Deferring the preview keeps typing responsive while it catches up.
+  const previewContent = React.useDeferredValue(content);
 
   const dirtyRef = React.useRef(false);
   const latestRef = React.useRef({ title, content, tagsText });
@@ -53,6 +74,7 @@ export default function NoteEditor({ note }) {
     setAiStatus('idle');
     setAiResult('');
     setAiError('');
+    setTaskBusy(false);
     dirtyRef.current = false;
   }, [note.id]);
 
@@ -106,11 +128,16 @@ export default function NoteEditor({ note }) {
   };
 
   const handleDelete = () => {
-    if (window.confirm('Delete this note? This cannot be undone.')) {
-      // Prevent the unmount flush from trying to update a deleted note.
-      dirtyRef.current = false;
-      deleteNote(note.id);
-    }
+    // Prevent the unmount flush from trying to update a deleted note.
+    dirtyRef.current = false;
+    deleteNote(note.id);
+  };
+
+  const handleMakeTask = async () => {
+    if (taskBusy) return;
+    setTaskBusy(true);
+    await createTaskFromNote({ ...note, title, content });
+    setTaskBusy(false);
   };
 
   const runAI = async (mode) => {
@@ -237,7 +264,8 @@ export default function NoteEditor({ note }) {
             type="button"
             onClick={handleDelete}
             className="icon-btn hover:text-danger"
-            aria-label="Delete note"
+            aria-label="Move note to Trash"
+            title="Move to Trash"
           >
             <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
@@ -295,6 +323,20 @@ export default function NoteEditor({ note }) {
           )}
           Summarize
         </button>
+        <button
+          type="button"
+          onClick={handleMakeTask}
+          disabled={taskBusy}
+          className="btn-ghost px-2.5 py-1.5 text-xs"
+          title="Create a task from this note's title"
+        >
+          {taskBusy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          Turn into task
+        </button>
         <span className="inline-flex items-center gap-1 text-[11px] text-faint">
           <Crown className="h-3 w-3" aria-hidden="true" />
           {notePlan.name}
@@ -318,6 +360,34 @@ export default function NoteEditor({ note }) {
           placeholder="Add tags, separated by commas"
           className="input py-2 text-xs"
         />
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
+          Markdown
+        </span>
+        <div
+          className="flex shrink-0 rounded-xl border border-line bg-raised p-1"
+          role="group"
+          aria-label="Editor view"
+        >
+          {VIEW_MODES.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setViewMode(id)}
+              aria-pressed={viewMode === id}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                viewMode === id
+                  ? 'bg-accent text-accent-fg shadow'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {aiMode && (
@@ -392,16 +462,54 @@ export default function NoteEditor({ note }) {
         </div>
       )}
 
-      <textarea
-        value={content}
-        onChange={(event) => {
-          setContent(event.target.value);
-          markDirty();
-        }}
-        placeholder="Start writing…"
-        aria-label="Note content"
-        className="mt-5 min-h-[45vh] w-full resize-y bg-transparent text-[15px] leading-7 text-ink outline-none placeholder:text-faint md:min-h-[55vh]"
-      />
+      <div
+        className={`mt-3 grid gap-4 ${
+          viewMode === 'split' ? 'lg:grid-cols-2' : ''
+        }`}
+      >
+        {viewMode !== 'preview' && (
+          <textarea
+            value={content}
+            onChange={(event) => {
+              setContent(event.target.value);
+              markDirty();
+            }}
+            placeholder="Start writing… Markdown is supported: headings, lists, **bold**, code, tables."
+            aria-label="Note content"
+            className="min-h-[45vh] w-full resize-y bg-transparent text-[15px] leading-7 text-ink outline-none placeholder:text-faint md:min-h-[55vh]"
+          />
+        )}
+
+        {viewMode !== 'write' && (
+          <div className="min-w-0">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">
+                Preview
+              </span>
+              {viewMode === 'split' && (
+                <span className="text-[11px] text-faint">Live</span>
+              )}
+            </div>
+            <div
+              role="region"
+              aria-label="Markdown preview"
+              className="markdown min-h-[45vh] rounded-xl border border-line/70 bg-panel/60 p-4 md:min-h-[55vh]"
+            >
+              {previewContent.trim() ? (
+                <React.Suspense
+                  fallback={<p className="text-sm text-faint">Rendering preview…</p>}
+                >
+                  <MarkdownPreview content={previewContent} />
+                </React.Suspense>
+              ) : (
+                <p className="text-sm text-faint">
+                  Nothing to preview yet. Start writing to see it rendered here.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line/70 pt-4 text-xs text-faint">
         <span>

@@ -66,6 +66,7 @@ export default function TodoCard({
   canReorder = true,
   isDragging = false,
   ghost = false,
+  focused = false,
   index = 0,
   count = 1,
   onToggle,
@@ -105,9 +106,13 @@ export default function TodoCard({
       target.closest('input, select, textarea, [data-no-drag]:not(button):not(a)');
     const onButton = target instanceof Element && target.closest('button, a');
 
+    // Interactive controls must stay clickable. Starting a drag on pointerdown
+    // hides the card content, so the matching click would land on the article
+    // instead of the button and silently do nothing.
+    if (onEntry || onButton) return;
+
     if (event.pointerType === 'touch') {
-      // Taps on controls must stay taps; long-press drag is for the body only.
-      if (onEntry || onButton) return;
+      // Long-press drag is for the card body only; taps on controls stay taps.
       clearPress();
       const startX = event.clientX;
       const startY = event.clientY;
@@ -125,13 +130,8 @@ export default function TodoCard({
     }
 
     // Text entry keeps its native selection/caret behaviour; other
-    // data-no-drag areas opt out explicitly.
-    if (onEntry) return;
-
-    // Fine pointers (mouse/pen) drag from anywhere on the card, controls
-    // included: release in place is still a normal click, release over a
-    // drop zone completes or carries the task. This keeps hover-revealed
-    // action buttons from creating dead zones along the card edges.
+    // data-no-drag areas opt out explicitly. Mouse/pen drags start from the
+    // card body, while controls keep their normal click behaviour.
     if (!canDrag || event.button !== 0) return;
     onDragActivate?.(todo, event.clientX, event.clientY);
   };
@@ -215,7 +215,7 @@ export default function TodoCard({
         canDrag || !editing ? 'select-none' : ''
       } ${canDrag ? 'cursor-grab active:cursor-grabbing' : ''} ${
         isDragging ? 'z-30 cursor-grabbing shadow-lift ring-2 ring-accent/40' : ''
-      }`}
+      } ${focused ? 'border-accent/60 ring-2 ring-accent/45 shadow-lift' : ''}`}
     >
       {/* Priority color wash: a faint themed glow that deepens on hover. */}
       <span
@@ -460,7 +460,8 @@ export default function TodoCard({
                 type="button"
                 onClick={() => onDelete(todo.id)}
                 className="card-action icon-btn h-7 w-7 hover:text-danger transition-all duration-200 md:translate-y-0.5 md:group-hover:translate-y-0 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
-                aria-label={`Delete task: ${todo.text}`}
+                aria-label={`Move task to Trash: ${todo.text}`}
+                title="Move to Trash"
                 data-no-drag
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

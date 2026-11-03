@@ -86,6 +86,104 @@ test('notes support create, read, update, and delete', async () => {
   assert.equal(missing.body.error, 'Note not found');
 });
 
+test('notes move to Trash, restore, and delete permanently', async () => {
+  const created = await request('/api/notes', {
+    method: 'POST',
+    ...json({ title: 'Recyclable', content: 'Bring me back' }),
+  });
+
+  const trashed = await request(`/api/notes/${created.body.id}`, { method: 'DELETE' });
+  assert.equal(trashed.response.status, 200);
+  assert.deepEqual(trashed.body, { success: true });
+
+  const list = await request('/api/notes');
+  assert.equal(list.body.length, 0);
+
+  const trash = await request('/api/notes/trash');
+  assert.equal(trash.response.status, 200);
+  assert.equal(trash.body.length, 1);
+  assert.equal(trash.body[0].id, created.body.id);
+  assert.equal(trash.body[0].trashed, true);
+  assert.equal(typeof trash.body[0].trashedAt, 'number');
+
+  // A second soft delete sees no active note.
+  const missing = await request(`/api/notes/${created.body.id}`, { method: 'DELETE' });
+  assert.equal(missing.response.status, 404);
+
+  const restored = await request(`/api/notes/${created.body.id}/restore`, { method: 'POST' });
+  assert.equal(restored.response.status, 200);
+  assert.equal(restored.body.trashed, false);
+  assert.equal(restored.body.trashedAt, null);
+  assert.equal((await request('/api/notes')).body.length, 1);
+
+  // Restoring twice is a 404 because the note is no longer in Trash.
+  const doubleRestore = await request(`/api/notes/${created.body.id}/restore`, { method: 'POST' });
+  assert.equal(doubleRestore.response.status, 404);
+
+  await request(`/api/notes/${created.body.id}`, { method: 'DELETE' });
+  const permanent = await request(`/api/notes/${created.body.id}/permanent`, { method: 'DELETE' });
+  assert.equal(permanent.response.status, 200);
+  assert.deepEqual(permanent.body, { success: true });
+  assert.equal((await request('/api/notes/trash')).body.length, 0);
+});
+
+test('emptying note and task Trash removes every trashed item', async () => {
+  const note = await request('/api/notes', { method: 'POST', ...json({ title: 'Old note' }) });
+  const todo = await request('/api/todos', { method: 'POST', ...json({ text: 'Old task' }) });
+
+  await request(`/api/notes/${note.body.id}`, { method: 'DELETE' });
+  await request(`/api/todos/${todo.body.id}`, { method: 'DELETE' });
+
+  const notes = await request('/api/notes/trash', { method: 'DELETE' });
+  assert.equal(notes.response.status, 200);
+  assert.deepEqual(notes.body, { success: true, removed: 1 });
+
+  const todos = await request('/api/todos/trash', { method: 'DELETE' });
+  assert.equal(todos.response.status, 200);
+  assert.deepEqual(todos.body, { success: true, removed: 1 });
+
+  assert.equal((await request('/api/notes/trash')).body.length, 0);
+  assert.equal((await request('/api/todos/trash')).body.length, 0);
+});
+
+test('todos move to Trash, restore, and keep their order', async () => {
+  const first = await request('/api/todos', { method: 'POST', ...json({ text: 'First' }) });
+  const second = await request('/api/todos', { method: 'POST', ...json({ text: 'Second' }) });
+
+  const trashed = await request(`/api/todos/${second.body.id}`, { method: 'DELETE' });
+  assert.equal(trashed.response.status, 200);
+
+  const list = await request('/api/todos');
+  assert.deepEqual(
+    list.body.map((todo) => todo.id),
+    [first.body.id]
+  );
+
+  const trash = await request('/api/todos/trash');
+  assert.equal(trash.body.length, 1);
+  assert.equal(trash.body[0].id, second.body.id);
+  assert.equal(trash.body[0].trashed, true);
+  assert.equal(typeof trash.body[0].trashedAt, 'number');
+
+  const restored = await request(`/api/todos/${second.body.id}/restore`, { method: 'POST' });
+  assert.equal(restored.response.status, 200);
+  assert.equal(restored.body.trashed, false);
+  assert.equal(restored.body.trashedAt, null);
+
+  const after = await request('/api/todos');
+  assert.deepEqual(
+    after.body.map((todo) => todo.id),
+    [second.body.id, first.body.id]
+  );
+
+  await request(`/api/todos/${second.body.id}`, { method: 'DELETE' });
+  const permanent = await request(`/api/todos/${second.body.id}/permanent`, {
+    method: 'DELETE',
+  });
+  assert.equal(permanent.response.status, 200);
+  assert.equal((await request('/api/todos/trash')).body.length, 0);
+});
+
 test('todos require text and track completion timestamps', async () => {
   const invalid = await request('/api/todos', { method: 'POST', ...json({ text: '   ' }) });
   assert.equal(invalid.response.status, 400);

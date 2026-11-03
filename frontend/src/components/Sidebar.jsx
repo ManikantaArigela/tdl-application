@@ -11,11 +11,13 @@ import {
   Loader2,
   LogOut,
   Star,
+  Trash2,
   UserRound,
   Wand2,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { plural } from '../lib/format';
+import { noteMatchesFilters } from '../lib/notes';
 import { getPlan } from '../lib/plans';
 import { getAvatar } from '../lib/avatars';
 import Brand from './Brand';
@@ -37,18 +39,20 @@ export default function Sidebar() {
 
   const notes = useStore((s) => s.notes);
   const todos = useStore((s) => s.todos);
+  const trashedNotes = useStore((s) => s.trashedNotes);
+  const trashedTodos = useStore((s) => s.trashedTodos);
   const searchQuery = useStore((s) => s.searchQuery);
+  const activeTags = useStore((s) => s.activeTags);
 
   // Derive counts locally so the store is never subscribed to a fresh array.
   const { visibleNotes, archivedNotes, pinnedNotes, pendingTodos } = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const matches = (note) =>
-      !query ||
-      (note.title ?? '').toLowerCase().includes(query) ||
-      (note.content ?? '').toLowerCase().includes(query);
-
-    const visible = notes.filter((note) => !note.archived && matches(note));
-    const archived = notes.filter((note) => note.archived && matches(note));
+    const filters = { query: searchQuery, tags: activeTags };
+    const visible = notes.filter(
+      (note) => !note.archived && noteMatchesFilters(note, filters)
+    );
+    const archived = notes.filter(
+      (note) => note.archived && noteMatchesFilters(note, filters)
+    );
 
     return {
       visibleNotes: visible,
@@ -56,7 +60,7 @@ export default function Sidebar() {
       pinnedNotes: visible.filter((note) => note.pinned),
       pendingTodos: todos.filter((todo) => !todo.completed),
     };
-  }, [notes, todos, searchQuery]);
+  }, [notes, todos, searchQuery, activeTags]);
 
   const navItems = [
     { id: 'notes', label: 'Notes', icon: LayoutGrid, count: visibleNotes.length },
@@ -64,6 +68,12 @@ export default function Sidebar() {
     { id: 'today', label: 'Today', icon: CalendarDays },
     { id: 'starred', label: 'Starred', icon: Star, count: pinnedNotes.length },
     { id: 'archive', label: 'Archive', icon: Archive, count: archivedNotes.length },
+    {
+      id: 'trash',
+      label: 'Trash',
+      icon: Trash2,
+      count: trashedNotes.length + trashedTodos.length,
+    },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   ];
 
@@ -84,7 +94,10 @@ export default function Sidebar() {
         <Brand size="md" />
       </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-2" aria-label="Views">
+        <nav
+          className="nav-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-2"
+          aria-label="Views"
+        >
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;
@@ -114,7 +127,7 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="border-t border-line p-3">
+        <div className="shrink-0 border-t border-line p-3">
           {accountItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;

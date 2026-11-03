@@ -24,7 +24,14 @@ function reset() {
 const notes = {
   list: async () =>
     [...state.notes]
+      .filter((note) => !note.trashed)
       .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+      .map(toNoteDTO),
+
+  listTrashed: async () =>
+    [...state.notes]
+      .filter((note) => note.trashed)
+      .sort((a, b) => (b.trashed_at ?? '').localeCompare(a.trashed_at ?? '') || b.id.localeCompare(a.id))
       .map(toNoteDTO),
 
   create: async (input = {}) => {
@@ -37,6 +44,8 @@ const notes = {
       tags: note.tags,
       pinned: note.pinned,
       archived: note.archived,
+      trashed: false,
+      trashed_at: null,
       created_at: now,
       updated_at: now,
     };
@@ -61,16 +70,40 @@ const notes = {
   },
 
   remove: async (id) => {
-    const index = state.notes.findIndex((note) => note.id === id);
+    const row = state.notes.find((note) => note.id === id && !note.trashed);
+    if (!row) return false;
+    row.trashed = true;
+    row.trashed_at = stamp();
+    return true;
+  },
+
+  restore: async (id) => {
+    const row = state.notes.find((note) => note.id === id && note.trashed);
+    if (!row) return null;
+    row.trashed = false;
+    row.trashed_at = null;
+    row.updated_at = stamp();
+    return toNoteDTO(row);
+  },
+
+  removePermanent: async (id) => {
+    const index = state.notes.findIndex((note) => note.id === id && note.trashed);
     if (index < 0) return false;
     state.notes.splice(index, 1);
     return true;
+  },
+
+  emptyTrash: async () => {
+    const before = state.notes.length;
+    state.notes = state.notes.filter((note) => !note.trashed);
+    return before - state.notes.length;
   },
 };
 
 const todos = {
   list: async () =>
     [...state.todos]
+      .filter((todo) => !todo.trashed)
       .sort(
         (a, b) =>
           a.sort_order - b.sort_order ||
@@ -79,11 +112,18 @@ const todos = {
       )
       .map(toTodoDTO),
 
+  listTrashed: async () =>
+    [...state.todos]
+      .filter((todo) => todo.trashed)
+      .sort((a, b) => (b.trashed_at ?? '').localeCompare(a.trashed_at ?? '') || b.id.localeCompare(a.id))
+      .map(toTodoDTO),
+
   create: async (input = {}) => {
     const todo = sanitizeTodo(input);
     if (!todo.text) return { ok: false, reason: 'invalid' };
 
-    const lowest = state.todos.reduce(
+    const active = state.todos.filter((row) => !row.trashed);
+    const lowest = active.reduce(
       (min, row) => (row.sort_order < min ? row.sort_order : min),
       0
     );
@@ -95,9 +135,12 @@ const todos = {
       due_date: todo.dueDate,
       due_time: todo.dueTime,
       repeat: todo.repeat,
+      duration: todo.duration,
       completed_at: iso(todo.completedAt),
+      trashed: false,
+      trashed_at: null,
       created_at: stamp(),
-      sort_order: state.todos.length === 0 ? 0 : lowest - 1,
+      sort_order: active.length === 0 ? 0 : lowest - 1,
     };
     state.todos.push(row);
     return { ok: true, todo: toTodoDTO(row) };
@@ -117,16 +160,39 @@ const todos = {
       due_date: next.dueDate,
       due_time: next.dueTime,
       repeat: next.repeat,
+      duration: next.duration,
       completed_at: iso(next.completedAt),
     });
     return { ok: true, todo: toTodoDTO(row) };
   },
 
   remove: async (id) => {
-    const index = state.todos.findIndex((todo) => todo.id === id);
+    const row = state.todos.find((todo) => todo.id === id && !todo.trashed);
+    if (!row) return false;
+    row.trashed = true;
+    row.trashed_at = stamp();
+    return true;
+  },
+
+  restore: async (id) => {
+    const row = state.todos.find((todo) => todo.id === id && todo.trashed);
+    if (!row) return null;
+    row.trashed = false;
+    row.trashed_at = null;
+    return toTodoDTO(row);
+  },
+
+  removePermanent: async (id) => {
+    const index = state.todos.findIndex((todo) => todo.id === id && todo.trashed);
     if (index < 0) return false;
     state.todos.splice(index, 1);
     return true;
+  },
+
+  emptyTrash: async () => {
+    const before = state.todos.length;
+    state.todos = state.todos.filter((todo) => !todo.trashed);
+    return before - state.todos.length;
   },
 
   reorder: async (items) => {

@@ -13,15 +13,17 @@ import {
   ListChecks,
   Loader2,
   LogOut,
+  Moon,
   ShieldCheck,
   Sparkles,
+  Sun,
   UserRound,
   Wand2,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import Toggle from '../components/Toggle';
 import { Dropdown } from '../components/FormControls';
-import { DENSITIES } from '../lib/settings';
+import { DENSITIES, THEMES } from '../lib/settings';
 import { getAvatar } from '../lib/avatars';
 import { getPlan } from '../lib/plans';
 
@@ -315,14 +317,47 @@ export default function ProfileView() {
       </Section>
 
       {/* ---- Appearance ------------------------------------------------------ */}
-      <Section icon={Gauge} title="Appearance" description="Tune density and motion for how you work.">
+      <Section icon={Gauge} title="Appearance" description="Tune theme, density, and motion for how you work.">
+        <div className="flex items-start justify-between gap-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ink">Theme</p>
+            <p className="mt-0.5 text-xs text-muted">Switch between the light and dark palette.</p>
+          </div>
+          <div
+            className="flex shrink-0 rounded-xl border border-line bg-raised p-1"
+            role="radiogroup"
+            aria-label="Theme"
+          >
+            {THEMES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={settings.theme === value}
+                onClick={() => setSettings({ theme: value })}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  settings.theme === value
+                    ? 'bg-accent text-accent-fg shadow'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                {value === 'dark' ? (
+                  <Moon className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <Sun className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                {value}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex items-start justify-between gap-4 py-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-ink">Compact density</p>
             <p className="mt-0.5 text-xs text-muted">Tighter spacing shows more on screen.</p>
           </div>
           <div
-            className="flex shrink-0 rounded-xl border border-line bg-surface-2 p-1"
+            className="flex shrink-0 rounded-xl border border-line bg-raised p-1"
             role="radiogroup"
             aria-label="Density"
           >
@@ -451,7 +486,7 @@ export default function ProfileView() {
           </button>
           {confirmingWipe ? (
             <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
-              Reset density, motion, defaults, and plan on this device?
+              Reset theme, density, motion, defaults, and plan on this device?
               <button
                 type="button"
                 className="rounded-lg bg-danger px-3 py-1.5 font-semibold text-white"

@@ -25,7 +25,7 @@ const CARD_TONES = {
     muted: 'text-white/60',
     icon: 'bg-white/10 text-pop-yellow',
     button:
-      'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-pop-yellow px-4 py-2.5 text-sm font-bold text-ink transition-transform hover:-translate-y-0.5',
+      'light-island inline-flex w-full items-center justify-center gap-2 rounded-xl bg-pop-yellow px-4 py-2.5 text-sm font-bold text-ink transition-transform hover:-translate-y-0.5',
     check: 'bg-white/10 text-pop-yellow',
   },
   premium: {
@@ -58,7 +58,7 @@ export default function PlanDialog() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/55 px-3 py-5 backdrop-blur-sm sm:px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3 py-5 backdrop-blur-sm sm:px-4"
       onClick={() => setOpen(false)}
     >
       <motion.div
@@ -130,7 +130,7 @@ export default function PlanDialog() {
                   <span
                     className={`absolute right-3 top-3 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                       item.highlight
-                        ? 'bg-pop-yellow text-ink'
+                        ? 'light-island bg-pop-yellow text-ink'
                         : 'bg-panel text-accent ring-1 ring-accent/15'
                     }`}
                   >

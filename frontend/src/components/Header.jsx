@@ -6,8 +6,10 @@ import {
   BellRing,
   CheckCheck,
   Clock3,
+  Moon,
   Search,
   Sparkles,
+  Sun,
   Wand2,
   X,
 } from 'lucide-react';
@@ -43,6 +45,8 @@ export default function Header() {
   const sendTestNotification = useStore((s) => s.sendTestNotification);
   const todos = useStore((s) => s.todos);
   const setActiveView = useStore((s) => s.setActiveView);
+  const theme = useStore((s) => s.settings.theme);
+  const toggleTheme = useStore((s) => s.toggleTheme);
 
   const [notifyOpen, setNotifyOpen] = React.useState(false);
   const [tested, setTested] = React.useState(false);
@@ -145,8 +149,8 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-20 -mx-[calc(1rem+env(safe-area-inset-left))] flex flex-wrap items-center gap-3 border-b border-line/60 bg-canvas/85 px-[calc(1rem+env(safe-area-inset-left))] py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md md:-mx-8 md:px-8 md:pt-3">
-      <div className="relative min-w-0 flex-1 sm:max-w-md">
+    <header className={`sticky top-0 ${notifyOpen ? 'z-40' : 'z-20'} -mx-[calc(1rem+env(safe-area-inset-left))] flex flex-wrap items-center gap-3 border-b border-line/60 bg-canvas/85 px-[calc(1rem+env(safe-area-inset-left))] py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md md:-mx-8 md:px-8 md:pt-3`}>
+      <div className="relative min-w-0 flex-1 max-[359px]:basis-full sm:max-w-md">
         <Search
           className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
           aria-hidden="true"
@@ -155,9 +159,9 @@ export default function Header() {
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search notes…"
-          aria-label="Search notes"
-          className="input rounded-full border-transparent bg-panel py-2.5 pl-10 pr-16 text-[13px] shadow-panel focus:border-accent/30"
+          placeholder="Search…"
+          aria-label="Search notes and tags"
+          className="input rounded-full border-transparent bg-panel py-2.5 pl-10 pr-10 text-[13px] shadow-panel focus:border-accent/30 sm:pr-16"
         />
         <div className="pointer-events-none absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1">
           {searchQuery ? (
@@ -176,6 +180,20 @@ export default function Header() {
       </div>
 
       <div className="ml-auto flex items-center gap-0.5 rounded-full border border-line/80 bg-panel p-0.5 shadow-panel sm:gap-1 sm:p-1">
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-pressed={theme === 'dark'}
+          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-[18px] w-[18px]" aria-hidden="true" />
+          ) : (
+            <Moon className="h-[18px] w-[18px]" aria-hidden="true" />
+          )}
+        </button>
         <button
           type="button"
           className="icon-btn"
@@ -245,7 +263,7 @@ export default function Header() {
                 transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
                 role="dialog"
                 aria-label="Notifications"
-                className="fixed inset-x-3 top-[4.35rem] z-50 max-h-[calc(100dvh-5.5rem)] origin-top overflow-y-auto rounded-2xl border border-line bg-panel p-4 shadow-lift sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[22rem]"
+                className="fixed inset-x-3 top-[calc(8rem+env(safe-area-inset-top))] z-50 max-h-[calc(100dvh-12rem)] origin-top overflow-y-auto overscroll-contain rounded-2xl border border-line bg-panel p-4 shadow-lift min-[360px]:top-[calc(4.35rem+env(safe-area-inset-top))] min-[360px]:max-h-[calc(100dvh-8.5rem)] sm:absolute sm:inset-x-auto sm:-right-2 sm:top-full sm:mt-2 sm:max-h-[calc(100dvh-10rem)] sm:w-[22rem]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">

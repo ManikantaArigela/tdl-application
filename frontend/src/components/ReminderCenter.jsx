@@ -131,7 +131,7 @@ export default function ReminderCenter() {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-24 left-4 z-40 flex w-[min(92vw,22rem)] flex-col gap-2 md:bottom-8 md:left-8"
+      className="pointer-events-none fixed bottom-[calc(8rem+env(safe-area-inset-bottom))] left-4 z-40 flex max-h-[calc(100dvh-10rem)] w-[min(92vw,22rem)] flex-col gap-2 overflow-y-auto overscroll-contain md:bottom-8 md:left-72 md:max-h-[calc(100dvh-5rem)]"
       aria-live="polite"
       aria-label="Task reminders"
     >

@@ -14,6 +14,10 @@ const noteSchema = new mongoose.Schema(
     tags: { type: [String], default: [] },
     pinned: { type: Boolean, default: false },
     archived: { type: Boolean, default: false },
+    // Trash is a soft delete: the document stays here until the user restores
+    // it or permanently deletes it from the Trash view.
+    trashed: { type: Boolean, default: false },
+    trashedAt: { type: Date, default: null },
     createdAt: { type: Date, required: true },
     updatedAt: { type: Date, required: true },
   },
@@ -23,6 +27,7 @@ const noteSchema = new mongoose.Schema(
 // Primary list query: one user's notes, newest first.
 noteSchema.index({ userId: 1, createdAt: -1, _id: -1 });
 noteSchema.index({ userId: 1, archived: 1, updatedAt: -1 });
+noteSchema.index({ userId: 1, trashed: 1, trashedAt: -1 });
 noteSchema.index({ userId: 1, tags: 1 });
 
 module.exports = mongoose.models.Note || mongoose.model('Note', noteSchema);

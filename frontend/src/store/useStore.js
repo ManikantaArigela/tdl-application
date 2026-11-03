@@ -4,11 +4,12 @@ import { advanceDueDate, dayKey } from '../lib/format';
 import { showSystemNotification } from '../lib/notifications';
 import { auth } from '../lib/auth';
 import { normalizePlan } from '../lib/plans';
-import { loadSettings, saveSettings, clearSettings } from '../lib/settings';
+import { loadSettings, saveSettings, clearSettings, applyTheme } from '../lib/settings';
+import { normalizeTag, noteMatchesFilters } from '../lib/notes';
+import { toast } from './useToastStore';
 
-// The app ships with a single light theme and a single brand color. Clear any
-// preference left behind by the old theme/accent switchers so it cannot
-// resurface later.
+// The current theme lives in tdl.settings. Clear the preference keys left
+// behind by the older theme/accent switchers so they cannot resurface later.
 try {
   localStorage.removeItem('nova.theme');
   localStorage.removeItem('nova.accent');
@@ -85,13 +86,17 @@ const emptyProfile = { name: '', bio: '', avatar: '' };
 const emptyWorkspace = {
   notes: [],
   todos: [],
+  trashedNotes: [],
+  trashedTodos: [],
   loaded: false,
   initializing: false,
   syncing: false,
   syncError: null,
   activeView: 'notes',
   selectedNoteId: null,
+  focusedTodoId: null,
   searchQuery: '',
+  activeTags: [],
   commandPaletteOpen: false,
   quickCaptureOpen: false,
   quickCaptureType: 'note',
@@ -134,10 +139,26 @@ function profileOf(user) {
 }
 
 
+/** The shortest useful task text from a note: title first, then its first line. */
+function taskTextForNote(note) {
+  const title = String(note?.title ?? '').trim();
+  if (title) return title.slice(0, 1000);
+
+  const firstLine = String(note?.content ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/, '').trim())
+    .find(Boolean);
+
+  return (firstLine || 'Untitled note').slice(0, 1000);
+}
+
+
 export const useStore = create((set, get) => ({
   // ---- Data ----
   notes: [],
   todos: [],
+  trashedNotes: [],
+  trashedTodos: [],
   loaded: false,
   initializing: false,
   syncing: false,
@@ -155,7 +176,9 @@ export const useStore = create((set, get) => ({
   // ---- UI state ----
   activeView: 'notes',
   selectedNoteId: null,
+  focusedTodoId: null,
   searchQuery: '',
+  activeTags: [],
   commandPaletteOpen: false,
   quickCaptureOpen: false,
   quickCaptureType: 'note',
@@ -184,6 +207,7 @@ export const useStore = create((set, get) => ({
     // returns 401 (expired or revoked session).
     if (typeof window !== 'undefined') {
       window.addEventListener('nova:unauthorized', () => {
+        toast.clear();
         set({
           ...emptyWorkspace,
           session: null,
@@ -295,6 +319,7 @@ export const useStore = create((set, get) => ({
       authNotice: null,
       planDialogOpen: false,
     });
+    toast.clear();
   },
 
   clearAuthMessages: () => set({ authError: null, authNotice: null }),
@@ -307,13 +332,26 @@ export const useStore = create((set, get) => ({
     const userId = get().user?.id;
     set({ initializing: true });
     try {
-      const [notes, todos] = await Promise.all([api.getNotes(), api.getTodos()]);
+      const [notes, todos, trashedNotes, trashedTodos] = await Promise.all([
+        api.getNotes(),
+        api.getTodos(),
+        api.getTrashedNotes(),
+        api.getTrashedTodos(),
+      ]);
       // A sign-out or account switch may have happened while the request was in flight.
       if (get().user?.id !== userId) {
         set({ initializing: false });
         return;
       }
-      set({ notes, todos, loaded: true, initializing: false, syncError: null });
+      set({
+        notes,
+        todos,
+        trashedNotes,
+        trashedTodos,
+        loaded: true,
+        initializing: false,
+        syncError: null,
+      });
     } catch (err) {
       if (get().user?.id !== userId) {
         set({ initializing: false });
@@ -332,9 +370,14 @@ export const useStore = create((set, get) => ({
   // ---- Data ----
   refresh: async () => {
     try {
-      const [notes, todos] = await Promise.all([api.getNotes(), api.getTodos()]);
-      set({ notes, todos, syncError: null });
-      return { notes, todos };
+      const [notes, todos, trashedNotes, trashedTodos] = await Promise.all([
+        api.getNotes(),
+        api.getTodos(),
+        api.getTrashedNotes(),
+        api.getTrashedTodos(),
+      ]);
+      set({ notes, todos, trashedNotes, trashedTodos, syncError: null });
+      return { notes, todos, trashedNotes, trashedTodos };
     } catch (err) {
       set({ syncError: err.message });
       return null;
@@ -367,14 +410,89 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  deleteNote: async (id) => {
+  deleteNote: async (id, { notify = true } = {}) => {
+    const note = get().notes.find((item) => item.id === id);
     try {
       await api.deleteNote(id);
+      const trashed = note
+        ? { ...note, trashed: true, trashedAt: Date.now() }
+        : null;
       set((state) => ({
         notes: state.notes.filter((n) => n.id !== id),
+        trashedNotes: trashed ? [trashed, ...state.trashedNotes] : state.trashedNotes,
         selectedNoteId: state.selectedNoteId === id ? null : state.selectedNoteId,
         syncError: null,
       }));
+      if (notify && note) {
+        toast.show({
+          title: 'Note moved to Trash',
+          description: note.title?.trim() || 'Untitled note',
+          actionLabel: 'Undo',
+          onAction: () => get().restoreNote(id),
+        });
+      }
+      return true;
+    } catch (err) {
+      set({ syncError: err.message });
+      return false;
+    }
+  },
+
+  restoreNote: async (id, { notify = true } = {}) => {
+    try {
+      const restored = await api.restoreNote(id);
+      set((state) => ({
+        notes: [restored, ...state.notes.filter((note) => note.id !== id)].sort(
+          (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)
+        ),
+        trashedNotes: state.trashedNotes.filter((note) => note.id !== id),
+        syncError: null,
+      }));
+      if (notify) {
+        toast.show({
+          title: 'Note restored',
+          description: restored.title?.trim() || 'Untitled note',
+          tone: 'success',
+          actionLabel: 'Open',
+          onAction: () => {
+            get().setActiveView('notes');
+            get().selectNote(restored.id);
+          },
+        });
+      }
+      return restored;
+    } catch (err) {
+      set({ syncError: err.message });
+      return null;
+    }
+  },
+
+  permanentlyDeleteNote: async (id) => {
+    try {
+      await api.permanentlyDeleteNote(id);
+      set((state) => ({
+        trashedNotes: state.trashedNotes.filter((note) => note.id !== id),
+        syncError: null,
+      }));
+      toast.show({ title: 'Note permanently deleted', tone: 'danger' });
+      return true;
+    } catch (err) {
+      set({ syncError: err.message });
+      return false;
+    }
+  },
+
+  emptyTrash: async () => {
+    const count = get().trashedNotes.length + get().trashedTodos.length;
+    try {
+      await Promise.all([api.emptyNoteTrash(), api.emptyTodoTrash()]);
+      set({ trashedNotes: [], trashedTodos: [], syncError: null });
+      toast.show({
+        title: 'Trash emptied',
+        description:
+          count > 0 ? `${count} ${count === 1 ? 'item' : 'items'} permanently deleted.` : '',
+        tone: 'danger',
+      });
       return true;
     } catch (err) {
       set({ syncError: err.message });
@@ -401,6 +519,28 @@ export const useStore = create((set, get) => ({
   },
 
   selectNote: (id) => set({ selectedNoteId: id, aiPanelOpen: false }),
+
+  /** Create a task from the note title (or first non-empty line). */
+  createTaskFromNote: async (note) => {
+    if (!note) return null;
+    const text = taskTextForNote(note);
+    const created = await get().addTodo({
+      text,
+      priority: get().settings.defaultPriority,
+      completed: false,
+    });
+
+    if (created) {
+      toast.show({
+        title: 'Task created from note',
+        description: text,
+        tone: 'success',
+        actionLabel: 'View',
+        onAction: () => get().focusTodo(created.id),
+      });
+    }
+    return created;
+  },
 
   // ---- Todos ----
   addTodo: async (todo) => {
@@ -458,10 +598,66 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  deleteTodo: async (id) => {
+  deleteTodo: async (id, { notify = true } = {}) => {
+    const todo = get().todos.find((item) => item.id === id);
     try {
       await api.deleteTodo(id);
-      set((state) => ({ todos: state.todos.filter((t) => t.id !== id), syncError: null }));
+      const trashed = todo
+        ? { ...todo, trashed: true, trashedAt: Date.now() }
+        : null;
+      set((state) => ({
+        todos: state.todos.filter((t) => t.id !== id),
+        trashedTodos: trashed ? [trashed, ...state.trashedTodos] : state.trashedTodos,
+        focusedTodoId: state.focusedTodoId === id ? null : state.focusedTodoId,
+        syncError: null,
+      }));
+      if (notify && todo) {
+        toast.show({
+          title: 'Task moved to Trash',
+          description: todo.text,
+          actionLabel: 'Undo',
+          onAction: () => get().restoreTodo(id),
+        });
+      }
+      return true;
+    } catch (err) {
+      set({ syncError: err.message });
+      return false;
+    }
+  },
+
+  restoreTodo: async (id, { notify = true } = {}) => {
+    try {
+      const restored = await api.restoreTodo(id);
+      set((state) => ({
+        todos: [restored, ...state.todos.filter((todo) => todo.id !== id)],
+        trashedTodos: state.trashedTodos.filter((todo) => todo.id !== id),
+        syncError: null,
+      }));
+      if (notify) {
+        toast.show({
+          title: 'Task restored',
+          description: restored.text,
+          tone: 'success',
+          actionLabel: 'View',
+          onAction: () => get().focusTodo(restored.id),
+        });
+      }
+      return restored;
+    } catch (err) {
+      set({ syncError: err.message });
+      return null;
+    }
+  },
+
+  permanentlyDeleteTodo: async (id) => {
+    try {
+      await api.permanentlyDeleteTodo(id);
+      set((state) => ({
+        trashedTodos: state.trashedTodos.filter((todo) => todo.id !== id),
+        syncError: null,
+      }));
+      toast.show({ title: 'Task permanently deleted', tone: 'danger' });
       return true;
     } catch (err) {
       set({ syncError: err.message });
@@ -481,8 +677,22 @@ export const useStore = create((set, get) => ({
   },
 
   // ---- UI ----
-  setActiveView: (view) => set({ activeView: view, selectedNoteId: null }),
+  setActiveView: (view) =>
+    set({ activeView: view, selectedNoteId: null, focusedTodoId: null }),
+  focusTodo: (id) =>
+    set({ activeView: 'todos', selectedNoteId: null, focusedTodoId: id }),
+  clearFocusedTodo: () => set({ focusedTodoId: null }),
   setSearchQuery: (q) => set({ searchQuery: q }),
+  toggleTag: (tag) => {
+    const next = normalizeTag(tag);
+    if (!next) return;
+    set((state) => ({
+      activeTags: state.activeTags.includes(next)
+        ? state.activeTags.filter((active) => active !== next)
+        : [...state.activeTags, next],
+    }));
+  },
+  clearTags: () => set({ activeTags: [] }),
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   toggleQuickCapture: () =>
@@ -549,8 +759,13 @@ export const useStore = create((set, get) => ({
     set((state) => {
       const next = { ...state.settings, ...patch };
       saveSettings(next);
+      applyTheme(next.theme);
       return { settings: next };
     });
+  },
+  toggleTheme: () => {
+    const next = get().settings.theme === 'dark' ? 'light' : 'dark';
+    get().setSettings({ theme: next });
   },
   /** Privacy: wipe every local preference (settings, plan, notify flag). */
   clearLocalPreferences: () => {
@@ -563,12 +778,16 @@ export const useStore = create((set, get) => ({
     } catch {
       /* ignore */
     }
+    const settings = loadSettings();
+    applyTheme(settings.theme);
     set({
-      settings: loadSettings(),
+      settings,
       plan: 'free',
       planUsage: readPlanUsage(),
       pendingPlan: null,
       notifyEnabled: true,
+      activeTags: [],
+      searchQuery: '',
     });
   },
 
@@ -611,29 +830,14 @@ export const useStore = create((set, get) => ({
 
   // ---- Derived ----
   get visibleNotes() {
-    const { notes, searchQuery } = get();
-    const q = searchQuery.trim().toLowerCase();
-    return notes.filter((n) => {
-      if (n.archived) return false;
-      if (!q) return true;
-      // Search matches note titles and content only — never tags.
-      return (
-        (n.title ?? '').toLowerCase().includes(q) ||
-        (n.content ?? '').toLowerCase().includes(q)
-      );
-    });
+    const { notes, searchQuery, activeTags } = get();
+    const filters = { query: searchQuery, tags: activeTags };
+    return notes.filter((n) => !n.archived && noteMatchesFilters(n, filters));
   },
   get archivedNotes() {
-    const { notes, searchQuery } = get();
-    const q = searchQuery.trim().toLowerCase();
-    return notes.filter((n) => {
-      if (!n.archived) return false;
-      if (!q) return true;
-      return (
-        (n.title ?? '').toLowerCase().includes(q) ||
-        (n.content ?? '').toLowerCase().includes(q)
-      );
-    });
+    const { notes, searchQuery, activeTags } = get();
+    const filters = { query: searchQuery, tags: activeTags };
+    return notes.filter((n) => n.archived && noteMatchesFilters(n, filters));
   },
   get pinnedNotes() {
     return get().visibleNotes.filter((n) => n.pinned);

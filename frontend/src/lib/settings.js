@@ -1,11 +1,13 @@
 const SETTINGS_KEY = 'tdl.settings';
 
+export const THEMES = ['light', 'dark'];
 export const DENSITIES = ['comfortable', 'compact'];
 export const SORT_OPTIONS = ['manual', 'priority', 'due'];
 export const DEFAULT_PRIORITY = 'medium';
 
 export const DEFAULT_SETTINGS = {
   // Appearance
+  theme: 'light',
   density: 'comfortable',
   reduceMotion: false,
   // Task preferences
@@ -25,6 +27,7 @@ export function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
     return {
+      theme: pick(saved.theme, THEMES, DEFAULT_SETTINGS.theme),
       density: pick(saved.density, DENSITIES, DEFAULT_SETTINGS.density),
       reduceMotion: Boolean(saved.reduceMotion),
       defaultPriority: pick(saved.defaultPriority, ['low', 'medium', 'high'], DEFAULT_SETTINGS.defaultPriority),
@@ -50,4 +53,25 @@ export function clearSettings() {
   } catch {
     /* ignore */
   }
+}
+
+const THEME_COLORS = {
+  light: '#f1f1f4',
+  dark: '#0d0c12',
+};
+
+/**
+ * Apply the theme to <html>. Tailwind is configured for class-based dark mode,
+ * and the `.dark` block in index.css owns every color token, so toggling one
+ * class re-themes the entire app (including native form controls).
+ */
+export function applyTheme(theme) {
+  if (typeof document === 'undefined') return;
+  const dark = theme === 'dark';
+  const root = document.documentElement;
+  root.classList.toggle('dark', dark);
+  root.style.colorScheme = dark ? 'dark' : 'light';
+
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? THEME_COLORS.dark : THEME_COLORS.light);
 }

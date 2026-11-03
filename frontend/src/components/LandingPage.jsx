@@ -41,7 +41,7 @@ const FEATURES = [
   {
     id: 'tasks',
     icon: ListChecks,
-    tone: 'bg-pop-yellow text-ink',
+    tone: 'light-island bg-pop-yellow text-ink',
     title: 'Tasks that get finished',
     copy: 'Sort by priority or due date, set repeats, and drag a card straight into done. Today stays clear.',
     bullets: ['Priorities, due dates, and repeats', 'A today view that stays honest'],
@@ -188,7 +188,7 @@ function ProductPreview() {
         />
 
         <div className="relative grid gap-3 rounded-[1.35rem] bg-[#1B0656] p-3 sm:grid-cols-[1.12fr_0.88fr] sm:p-4">
-          <div className="rounded-[1.15rem] bg-white p-4 sm:p-5">
+          <div className="light-island rounded-[1.15rem] bg-white p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-2 text-xs font-bold text-ink">
                 <span className="h-2.5 w-2.5 rounded-full bg-pop-pink" aria-hidden="true" />
@@ -263,7 +263,7 @@ function ProductPreview() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <div className="rounded-[1.15rem] bg-pop-yellow p-4 text-ink">
+            <div className="light-island rounded-[1.15rem] bg-pop-yellow p-4 text-ink">
               <p className="text-[10px] font-bold text-ink/60">Tasks finished this week</p>
               <p className="mt-1 text-4xl font-extrabold tracking-[-0.07em]">12</p>
               <div className="mt-4 flex h-12 items-end gap-1.5" aria-hidden="true">
@@ -400,8 +400,8 @@ const PLAN_TONES = {
     muted: 'text-white/60',
     icon: 'bg-white/10 text-pop-yellow',
     button:
-      'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-pop-yellow px-5 py-3 text-sm font-bold text-ink transition-transform hover:-translate-y-0.5',
-    badge: 'bg-pop-yellow text-ink',
+      'light-island inline-flex w-full items-center justify-center gap-2 rounded-xl bg-pop-yellow px-5 py-3 text-sm font-bold text-ink transition-transform hover:-translate-y-0.5',
+    badge: 'light-island bg-pop-yellow text-ink',
     check: 'bg-white/10 text-pop-yellow',
     feature: 'text-white/80',
   },
@@ -563,7 +563,7 @@ export default function LandingPage({ onSignIn, onSignUp, onChoosePlan }) {
             <button
               type="button"
               onClick={onSignUp}
-              className="rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent"
+              className="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-strong"
             >
               Start free
             </button>
@@ -736,7 +736,7 @@ export default function LandingPage({ onSignIn, onSignUp, onChoosePlan }) {
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                   <span className="chip bg-lavender text-accent">Web + mobile</span>
-                  <span className="chip bg-pop-yellow text-ink">Every plan</span>
+                  <span className="chip light-island bg-pop-yellow text-ink">Every plan</span>
                 </div>
               </motion.div>
             </div>

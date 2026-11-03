@@ -31,6 +31,8 @@ const toNoteDTO = (doc = {}) => ({
   tags: Array.isArray(doc.tags) ? doc.tags : [],
   pinned: Boolean(doc.pinned),
   archived: Boolean(doc.archived),
+  trashed: Boolean(doc.trashed),
+  trashedAt: toMs(pick(doc, 'trashedAt', 'trashed_at')),
   createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
   updatedAt: toMs(pick(doc, 'updatedAt', 'updated_at')),
 });
@@ -50,6 +52,8 @@ const toTodoDTO = (doc = {}) => {
     duration:
       typeof doc.duration === 'number' && Number.isFinite(doc.duration) ? doc.duration : null,
     completedAt: toMs(pick(doc, 'completedAt', 'completed_at')),
+    trashed: Boolean(doc.trashed),
+    trashedAt: toMs(pick(doc, 'trashedAt', 'trashed_at')),
     createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
   };
 };

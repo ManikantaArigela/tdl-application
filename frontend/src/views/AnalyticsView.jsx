@@ -397,7 +397,7 @@ const STAT_TONES = {
     value: 'text-ink',
   },
   sun: {
-    card: 'rounded-[1.25rem] border border-black/5 bg-pop-yellow',
+    card: 'light-island rounded-[1.25rem] border border-black/5 bg-pop-yellow',
     label: 'text-ink/60',
     icon: 'bg-panel/50 text-ink',
     value: 'text-ink',

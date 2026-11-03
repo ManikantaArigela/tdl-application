@@ -26,7 +26,14 @@ function createTodosRepo({ userId } = {}) {
   if (!userId) throw new Error('createTodosRepo requires a user id');
 
   const list = async () => {
-    const docs = await Todo.find({ userId }).sort(SORT).lean();
+    const docs = await Todo.find({ userId, trashed: { $ne: true } }).sort(SORT).lean();
+    return docs.map(toTodoDTO);
+  };
+
+  const listTrashed = async () => {
+    const docs = await Todo.find({ userId, trashed: true })
+      .sort({ trashedAt: -1, _id: -1 })
+      .lean();
     return docs.map(toTodoDTO);
   };
 
@@ -35,7 +42,10 @@ function createTodosRepo({ userId } = {}) {
    * current order for this user and step one below it.
    */
   const nextTopOrder = async () => {
-    const first = await Todo.findOne({ userId }).sort({ sortOrder: 1 }).select('sortOrder').lean();
+    const first = await Todo.findOne({ userId, trashed: { $ne: true } })
+      .sort({ sortOrder: 1 })
+      .select('sortOrder')
+      .lean();
     return first ? Number(first.sortOrder) - 1 : 0;
   };
 
@@ -47,6 +57,8 @@ function createTodosRepo({ userId } = {}) {
       _id: `t_${crypto.randomUUID()}`,
       userId,
       ...toDoc(todo),
+      trashed: false,
+      trashedAt: null,
       createdAt: new Date(),
       sortOrder: await nextTopOrder(),
     });
@@ -71,9 +83,35 @@ function createTodosRepo({ userId } = {}) {
     return { ok: true, todo: toTodoDTO(updated) };
   };
 
+  /** Soft delete: returns true when an active todo was moved to Trash. */
   const remove = async (id) => {
-    const result = await Todo.deleteOne({ _id: id, userId });
+    const result = await Todo.updateOne(
+      { _id: id, userId, trashed: { $ne: true } },
+      { $set: { trashed: true, trashedAt: new Date() } }
+    );
+    return result.modifiedCount > 0;
+  };
+
+  /** Restores a trashed todo and returns it, or null when it is not in Trash. */
+  const restore = async (id) => {
+    const restored = await Todo.findOneAndUpdate(
+      { _id: id, userId, trashed: true },
+      { $set: { trashed: false, trashedAt: null } },
+      { new: true, lean: true }
+    );
+    return restored ? toTodoDTO(restored) : null;
+  };
+
+  /** Permanently removes one trashed todo. */
+  const removePermanent = async (id) => {
+    const result = await Todo.deleteOne({ _id: id, userId, trashed: true });
     return result.deletedCount > 0;
+  };
+
+  /** Empties the Trash for this account and returns how many todos were removed. */
+  const emptyTrash = async () => {
+    const result = await Todo.deleteMany({ userId, trashed: true });
+    return result.deletedCount;
   };
 
   /**
@@ -83,7 +121,7 @@ function createTodosRepo({ userId } = {}) {
    * converges instead of assuming.
    */
   const reorder = async (items) => {
-    const existing = await Todo.find({ userId }).sort(SORT).lean();
+    const existing = await Todo.find({ userId, trashed: { $ne: true } }).sort(SORT).lean();
     const byId = new Map(existing.map((todo) => [todo._id, todo]));
     const seen = new Set();
     const orderedIds = [];
@@ -114,7 +152,17 @@ function createTodosRepo({ userId } = {}) {
     return list();
   };
 
-  return { list, create, update, remove, reorder };
+  return {
+    list,
+    listTrashed,
+    create,
+    update,
+    remove,
+    restore,
+    removePermanent,
+    emptyTrash,
+    reorder,
+  };
 }
 
 module.exports = { createTodosRepo };

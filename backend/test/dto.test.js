@@ -43,6 +43,8 @@ test('note rows map from snake_case to the API shape', () => {
     tags: ['a', 'b'],
     pinned: true,
     archived: false,
+    trashed: false,
+    trashedAt: null,
     createdAt: MS,
     updatedAt: MS,
   });
@@ -70,6 +72,8 @@ test('MongoDB notes map _id to id and drop account internals', () => {
     tags: ['x'],
     pinned: false,
     archived: true,
+    trashed: false,
+    trashedAt: null,
     createdAt: MS,
     updatedAt: MS,
   });
@@ -130,6 +134,8 @@ test('todo rows map from snake_case to the API shape', () => {
     repeat: 'daily',
     duration: 45,
     completedAt: MS,
+    trashed: false,
+    trashedAt: null,
     createdAt: MS,
   });
   assert.equal(todo.due_date, undefined);
@@ -152,6 +158,8 @@ test('todo rows tolerate null due fields', () => {
   assert.equal(todo.priority, 'medium');
   assert.equal(todo.repeat, 'none');
   assert.equal(todo.duration, null);
+  assert.equal(todo.trashed, false);
+  assert.equal(todo.trashedAt, null);
 });
 
 test('database errors map to client-safe statuses', () => {

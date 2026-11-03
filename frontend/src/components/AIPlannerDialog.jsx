@@ -288,7 +288,7 @@ export default function AIPlannerDialog() {
               <button
                 type="button"
                 onClick={openPlans}
-                className="mt-2 rounded-lg bg-ink px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-accent"
+                className="mt-2 rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-accent-fg transition-colors hover:bg-accent-strong"
               >
                 Compare plans
               </button>

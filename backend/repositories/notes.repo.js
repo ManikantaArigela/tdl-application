@@ -12,7 +12,16 @@ function createNotesRepo({ userId } = {}) {
   if (!userId) throw new Error('createNotesRepo requires a user id');
 
   const list = async () => {
-    const docs = await Note.find({ userId }).sort({ createdAt: -1, _id: -1 }).lean();
+    const docs = await Note.find({ userId, trashed: { $ne: true } })
+      .sort({ createdAt: -1, _id: -1 })
+      .lean();
+    return docs.map(toNoteDTO);
+  };
+
+  const listTrashed = async () => {
+    const docs = await Note.find({ userId, trashed: true })
+      .sort({ trashedAt: -1, _id: -1 })
+      .lean();
     return docs.map(toNoteDTO);
   };
 
@@ -28,6 +37,8 @@ function createNotesRepo({ userId } = {}) {
       tags: note.tags,
       pinned: note.pinned,
       archived: note.archived,
+      trashed: false,
+      trashedAt: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -59,13 +70,38 @@ function createNotesRepo({ userId } = {}) {
     return updated ? toNoteDTO(updated) : null;
   };
 
-  /** Returns true when a document was removed. */
+  /** Soft delete: returns true when an active note was moved to Trash. */
   const remove = async (id) => {
-    const result = await Note.deleteOne({ _id: id, userId });
+    const result = await Note.updateOne(
+      { _id: id, userId, trashed: { $ne: true } },
+      { $set: { trashed: true, trashedAt: new Date() } }
+    );
+    return result.modifiedCount > 0;
+  };
+
+  /** Restores a trashed note and returns it, or null when it is not in Trash. */
+  const restore = async (id) => {
+    const restored = await Note.findOneAndUpdate(
+      { _id: id, userId, trashed: true },
+      { $set: { trashed: false, trashedAt: null, updatedAt: new Date() } },
+      { new: true, lean: true }
+    );
+    return restored ? toNoteDTO(restored) : null;
+  };
+
+  /** Permanently removes one trashed note. */
+  const removePermanent = async (id) => {
+    const result = await Note.deleteOne({ _id: id, userId, trashed: true });
     return result.deletedCount > 0;
   };
 
-  return { list, create, update, remove };
+  /** Empties the Trash for this account and returns how many notes were removed. */
+  const emptyTrash = async () => {
+    const result = await Note.deleteMany({ userId, trashed: true });
+    return result.deletedCount;
+  };
+
+  return { list, listTrashed, create, update, remove, restore, removePermanent, emptyTrash };
 }
 
 module.exports = { createNotesRepo };

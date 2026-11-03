@@ -19,6 +19,7 @@ import {
 import TodoCard, { DURATIONS, PRIORITIES } from './TodoCard';
 import CompletionBag from './CompletionBag';
 import CarryOverBox from './CarryOverBox';
+import { toast } from '../store/useToastStore';
 
 const todayStamp = () => {
   const date = new Date();
@@ -55,7 +56,10 @@ export default function TodoList({ scope = 'all' }) {
   const toggleTodo = useStore((s) => s.toggleTodo);
   const updateTodo = useStore((s) => s.updateTodo);
   const deleteTodo = useStore((s) => s.deleteTodo);
+  const restoreTodo = useStore((s) => s.restoreTodo);
   const reorderTodos = useStore((s) => s.reorderTodos);
+  const focusedTodoId = useStore((s) => s.focusedTodoId);
+  const clearFocusedTodo = useStore((s) => s.clearFocusedTodo);
   const settings = useStore((s) => s.settings);
 
   const [text, setText] = React.useState('');
@@ -124,6 +128,24 @@ export default function TodoList({ scope = 'all' }) {
 
   const todosRef = React.useRef(todos);
   todosRef.current = todos;
+
+  // Command-palette task results scroll the matching card into view and flash a
+  // focus ring so it is obvious which task was found.
+  React.useEffect(() => {
+    if (!focusedTodoId) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const element = document.querySelector(`[data-todo-id="${focusedTodoId}"]`);
+      element?.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    });
+    const timer = window.setTimeout(clearFocusedTodo, 3200);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [focusedTodoId, clearFocusedTodo, reduceMotion]);
 
   // Tasks that hit the end of the day without being finished.
   const carriedTodos = openTodos.filter(
@@ -316,7 +338,7 @@ export default function TodoList({ scope = 'all' }) {
   const releaseDueDate = (id) => updateTodo(id, { dueDate: null, dueTime: null });
 
   const handleDelete = async (id) => {
-    if (settings.confirmDelete && !window.confirm('Delete this task?')) return;
+    if (settings.confirmDelete && !window.confirm('Move this task to Trash?')) return;
     await deleteTodo(id);
   };
 
@@ -325,12 +347,24 @@ export default function TodoList({ scope = 'all' }) {
     if (
       settings.confirmDelete &&
       !window.confirm(
-        `Delete ${completedToday.length} completed ${plural(completedToday.length, 'task')} from today? Older history stays in analytics.`
+        `Move ${completedToday.length} completed ${plural(completedToday.length, 'task')} from today to Trash? Older history stays in analytics.`
       )
     ) {
       return;
     }
-    await Promise.all(completedToday.map((todo) => deleteTodo(todo.id)));
+    const ids = completedToday.map((todo) => todo.id);
+    await Promise.all(ids.map((id) => deleteTodo(id, { notify: false })));
+    toast.show({
+      title: `${ids.length} ${plural(ids.length, 'task')} moved to Trash`,
+      actionLabel: 'Undo',
+      onAction: async () => {
+        await Promise.all(ids.map((id) => restoreTodo(id, { notify: false })));
+        toast.show({
+          title: `${ids.length} ${plural(ids.length, 'task')} restored`,
+          tone: 'success',
+        });
+      },
+    });
   };
 
   const zoneLabel =
@@ -490,6 +524,7 @@ export default function TodoList({ scope = 'all' }) {
                     canDrag={canDrag}
                     canReorder={sort === 'manual'}
                     isDragging={dragId === todo.id}
+                    focused={focusedTodoId === todo.id}
                     onToggle={toggleTodo}
                     onUpdate={updateTodo}
                     onDelete={handleDelete}

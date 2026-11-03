@@ -24,6 +24,8 @@ const todoSchema = new mongoose.Schema(
     // Planned length in whole minutes; null when unset.
     duration: { type: Number, default: null, min: 0, max: 600 },
     completedAt: { type: Date, default: null },
+    trashed: { type: Boolean, default: false },
+    trashedAt: { type: Date, default: null },
     createdAt: { type: Date, required: true },
     // Sparse manual order: new todos go above the current top without shifting.
     sortOrder: { type: Number, required: true },
@@ -35,5 +37,6 @@ const todoSchema = new mongoose.Schema(
 todoSchema.index({ userId: 1, sortOrder: 1, createdAt: 1, _id: 1 });
 todoSchema.index({ userId: 1, completed: 1, sortOrder: 1 });
 todoSchema.index({ userId: 1, dueDate: 1 });
+todoSchema.index({ userId: 1, trashed: 1, trashedAt: -1 });
 
 module.exports = mongoose.models.Todo || mongoose.model('Todo', todoSchema);

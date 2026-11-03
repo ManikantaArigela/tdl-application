@@ -14,7 +14,18 @@ const memory = require('../test-utils/memory-repos');
 let server;
 let baseUrl;
 
-const NOTE_KEYS = ['id', 'title', 'content', 'tags', 'pinned', 'archived', 'createdAt', 'updatedAt'];
+const NOTE_KEYS = [
+  'id',
+  'title',
+  'content',
+  'tags',
+  'pinned',
+  'archived',
+  'trashed',
+  'trashedAt',
+  'createdAt',
+  'updatedAt',
+];
 const TODO_KEYS = [
   'id',
   'text',
@@ -25,6 +36,8 @@ const TODO_KEYS = [
   'repeat',
   'duration',
   'completedAt',
+  'trashed',
+  'trashedAt',
   'createdAt',
 ];
 
@@ -69,6 +82,8 @@ test('note responses keep the exact legacy shape', async () => {
   assert.ok(Array.isArray(note.tags));
   assert.equal(typeof note.pinned, 'boolean');
   assert.equal(typeof note.archived, 'boolean');
+  assert.equal(typeof note.trashed, 'boolean');
+  assert.equal(note.trashedAt, null);
   assert.equal(typeof note.createdAt, 'number');
   assert.equal(typeof note.updatedAt, 'number');
   // No storage leakage.
@@ -87,6 +102,8 @@ test('todo responses keep the exact legacy shape', async () => {
   assert.equal(typeof todo.completed, 'boolean');
   assert.equal(todo.dueDate, null);
   assert.equal(todo.completedAt, null);
+  assert.equal(typeof todo.trashed, 'boolean');
+  assert.equal(todo.trashedAt, null);
   assert.equal(typeof todo.createdAt, 'number');
   assert.equal(todo._id, undefined);
   assert.equal(todo.order, undefined);

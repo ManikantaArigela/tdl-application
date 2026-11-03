@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowUpRight, ArchiveRestore, Clock, Pin, Star, Tag, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ArchiveRestore, Clock, ListChecks, Pin, Star, Tag, Trash2 } from 'lucide-react';
 import { relativeTime } from '../lib/format';
 
 export default function TiltNoteCard({
@@ -10,6 +10,7 @@ export default function TiltNoteCard({
   onDelete,
   onPin,
   onArchive,
+  onMakeTask,
   archived = false,
 }) {
   const reduceMotion = useReducedMotion();
@@ -55,7 +56,7 @@ export default function TiltNoteCard({
         aria-label={`Open note: ${note.title || 'Untitled'}`}
       />
 
-      <div className="relative z-10">
+      <div className="pointer-events-none relative z-10">
         <div className="pointer-events-none relative z-10">
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -92,10 +93,23 @@ export default function TiltNoteCard({
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
+                  onMakeTask?.(note);
+                }}
+                className="icon-btn h-8 w-8 text-faint hover:text-accent md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                aria-label={`Turn note into task: ${note.title || 'Untitled'}`}
+                title="Turn into task"
+              >
+                <ListChecks className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
                   onDelete(note.id);
                 }}
                 className="icon-btn h-8 w-8 text-faint hover:text-danger md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
-                aria-label={`Delete note: ${note.title || 'Untitled'}`}
+                aria-label={`Move note to Trash: ${note.title || 'Untitled'}`}
+                title="Move to Trash"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </button>

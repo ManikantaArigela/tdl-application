@@ -3,6 +3,7 @@ import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { Plus } from 'lucide-react';
 
 import { useStore } from './store/useStore';
+import { applyTheme } from './lib/settings';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
@@ -10,12 +11,14 @@ import NotesView from './views/NotesView';
 import TodosView from './views/TodosView';
 import AnalyticsView from './views/AnalyticsView';
 import ProfileView from './views/ProfileView';
+import TrashView from './views/TrashView';
 import NoteEditor from './components/NoteEditor';
 import CommandPalette from './components/CommandPalette';
 import QuickCapture from './components/QuickCapture';
 import InsightsPanel from './components/InsightsPanel';
 import ExportDialog from './components/ExportDialog';
 import ReminderCenter from './components/ReminderCenter';
+import ToastCenter from './components/ToastCenter';
 import AIPlannerDialog from './components/AIPlannerDialog';
 import AISummaryDialog from './components/AISummaryDialog';
 import AuthScreen from './components/AuthScreen';
@@ -93,12 +96,20 @@ export default function App() {
   const planDialogOpen = useStore((s) => s.planDialogOpen);
   const reduceMotion = useStore((s) => s.settings.reduceMotion);
   const density = useStore((s) => s.settings.density);
+  const theme = useStore((s) => s.settings.theme);
 
   const note = selectedNoteId ? notes.find((n) => n.id === selectedNoteId) : null;
+  const captureHidden =
+    Boolean(selectedNoteId) || ['analytics', 'profile', 'trash'].includes(activeView);
 
   React.useEffect(() => {
     useStore.getState().initAuth();
   }, []);
+
+  // Keep <html> in sync even if preferences are reset or restored.
+  React.useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   // Close the auth screen when an account is active, and return to the landing
   // page after sign-out.
@@ -254,6 +265,7 @@ export default function App() {
                     {activeView === 'today' && <TodosView filter="open" />}
                     {activeView === 'starred' && <NotesView starred />}
                     {activeView === 'archive' && <NotesView archive />}
+                    {activeView === 'trash' && <TrashView />}
                     {activeView === 'analytics' && <AnalyticsView />}
                     {activeView === 'profile' && <ProfileView />}
                   </motion.div>
@@ -265,7 +277,11 @@ export default function App() {
 
         <div
           className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 md:bottom-8 md:right-8 ${
-            activeView === 'todos' || activeView === 'today' ? 'hidden md:block' : ''
+            captureHidden
+              ? 'hidden'
+              : activeView === 'todos' || activeView === 'today'
+                ? 'hidden md:block'
+                : ''
           }`}
         >
             <motion.span
@@ -311,6 +327,7 @@ export default function App() {
         </AnimatePresence>
 
         <ReminderCenter />
+        <ToastCenter />
         </div>
       </MotionConfig>
     </ErrorBoundary>

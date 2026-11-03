@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CalendarDays, CheckCircle2, LayoutGrid, Star, UserRound } from 'lucide-react';
+import { CalendarDays, CheckCircle2, LayoutGrid, Star, Trash2, UserRound } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 const TABS = [
@@ -8,6 +8,7 @@ const TABS = [
   { id: 'todos', label: 'Todos', icon: CheckCircle2 },
   { id: 'today', label: 'Today', icon: CalendarDays },
   { id: 'starred', label: 'Starred', icon: Star },
+  { id: 'trash', label: 'Trash', icon: Trash2 },
   { id: 'profile', label: 'Profile', icon: UserRound },
 ];
 

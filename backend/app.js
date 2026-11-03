@@ -33,8 +33,8 @@ const {
  * Storage-agnostic application factory.
  *
  * `createRepos(userId)` returns:
- *   notes: { list, create, update, remove }
- *   todos: { list, create, update, remove, reorder }
+ *   notes: { list, listTrashed, create, update, remove, restore, removePermanent, emptyTrash }
+ *   todos: { list, listTrashed, create, update, remove, restore, removePermanent, emptyTrash, reorder }
  *
  * `authenticate` verifies the bearer token and populates `req.userId`.
  * `users` is the account store used by /api/auth. All hooks are injectable so
@@ -246,6 +246,40 @@ function createApp({
     })
   );
 
+  // Trash routes must be registered before /:id so "trash" is not read as an id.
+  app.get(
+    '/api/notes/trash',
+    wrap(async (req, res) => {
+      res.json(await req.repos.notes.listTrashed());
+    })
+  );
+
+  app.delete(
+    '/api/notes/trash',
+    wrap(async (req, res) => {
+      const removed = await req.repos.notes.emptyTrash();
+      res.json({ success: true, removed });
+    })
+  );
+
+  app.post(
+    '/api/notes/:id/restore',
+    wrap(async (req, res) => {
+      const note = await req.repos.notes.restore(req.params.id);
+      if (!note) return res.status(404).json({ error: 'Note not found in Trash' });
+      return res.json(note);
+    })
+  );
+
+  app.delete(
+    '/api/notes/:id/permanent',
+    wrap(async (req, res) => {
+      const removed = await req.repos.notes.removePermanent(req.params.id);
+      if (!removed) return res.status(404).json({ error: 'Note not found in Trash' });
+      return res.json({ success: true });
+    })
+  );
+
   app.put(
     '/api/notes/:id',
     wrap(async (req, res) => {
@@ -272,7 +306,40 @@ function createApp({
     })
   );
 
-  // Registered before /api/todos/:id so "reorder" is not read as an id.
+  // Registered before /api/todos/:id so "trash" and "reorder" are not read as ids.
+  app.get(
+    '/api/todos/trash',
+    wrap(async (req, res) => {
+      res.json(await req.repos.todos.listTrashed());
+    })
+  );
+
+  app.delete(
+    '/api/todos/trash',
+    wrap(async (req, res) => {
+      const removed = await req.repos.todos.emptyTrash();
+      res.json({ success: true, removed });
+    })
+  );
+
+  app.post(
+    '/api/todos/:id/restore',
+    wrap(async (req, res) => {
+      const todo = await req.repos.todos.restore(req.params.id);
+      if (!todo) return res.status(404).json({ error: 'Todo not found in Trash' });
+      return res.json(todo);
+    })
+  );
+
+  app.delete(
+    '/api/todos/:id/permanent',
+    wrap(async (req, res) => {
+      const removed = await req.repos.todos.removePermanent(req.params.id);
+      if (!removed) return res.status(404).json({ error: 'Todo not found in Trash' });
+      return res.json({ success: true });
+    })
+  );
+
   app.put(
     '/api/todos/reorder',
     wrap(async (req, res) => {

@@ -57,9 +57,10 @@ nova-notes/
         ├── store/useStore.js      # Zustand state, auth, API sync
         ├── components/            # AmbientBackground, AuthScreen, CommandPalette,
         │                          # ExportDialog, Header, InsightsPanel, NoteEditor,
-        │                          # QuickCapture, ReminderCenter, Sidebar, ...
+        │                          # QuickCapture, ReminderCenter, Sidebar, ToastCenter, ...
         ├── lib/format.js
-        └── views/                 # AnalyticsView, NotesView, TodosView
+        ├── lib/notes.js           # Tag-aware search + filter helpers
+        └── views/                 # AnalyticsView, NotesView, TodosView, TrashView
 ```
 
 ---
@@ -171,13 +172,14 @@ The AI endpoints are protected too, so visitors cannot spend your Gemini quota w
 | Category | Features |
 |---|---|
 | **Auth** | Email/password signup + login, bcrypt hashing, 30-day JWT sessions, session restore on reload, sign-out, per-user private workspace |
-| **Notes** | Create, edit, pin, archive, delete, tag, search (title/content/tags), debounced autosave with save status, AI improve + summarize per note |
-| **Todos** | Card-based task board with due dates **and times**, priority sorting (or manual order / due-date order), recurring tasks (daily or weekly), drag onto completed/carried-over boxes, inline carry action, clear completed |
+| **Notes** | Create, edit, pin, archive, trash (with Undo), tag, search (title/content/tags), click-to-filter tag chips, Markdown write/split/preview editor, one-click “Turn into task”, debounced autosave with save status, AI improve + summarize per note |
+| **Todos** | Card-based task board with due dates **and times**, priority sorting (or manual order / due-date order), recurring tasks (daily or weekly), drag onto completed/carried-over boxes, inline carry action, clear completed, trash with Undo |
+| **Trash** | Persistent soft-delete for notes and tasks, per-item restore, permanent delete, and Empty Trash |
 | **Reminders** | In-app toasts plus browser/mobile notifications from 10 minutes before a task's due time, with a per-browser permission control in the header |
 | **AI (Gemini)** | Planner that turns a topic, pasted text, or PDF into notes + tasks automatically; student-friendly note rewriting; per-note summaries; a "Study brief" that summarizes every note on the Notes tab |
-| **Design** | Editorial paper/ink theme, Newsreader + Inter + JetBrains Mono, single brand palette, semantic CSS-variable tokens, reduced-motion support |
+| **Design** | Editorial paper/ink theme, persisted light/dark toggle (header, settings, command palette), single brand palette, semantic CSS-variable tokens, reduced-motion support |
 | **UI / 3D** | Clean note cards with a subtle hover lift, liquid completion bag, lazy-loaded ambient Three.js starfield, Framer Motion with global reduced-motion policy |
-| **Interactions** | Command palette (`Cmd+K` / `Ctrl+K`), quick capture (`Cmd+J` / `Ctrl+J`), responsive navigation drawer, skip link, focus states |
+| **Interactions** | Command palette (`Cmd+K` / `Ctrl+K`) with global note, task, and command search, quick capture (`Cmd+J` / `Ctrl+J`), responsive navigation drawer, skip link, focus states |
 | **Insights** | Weekly review and focus list computed locally from your data |
 | **Analytics** | Completion rate, streak, notes edited this week, seven-day completion chart from real `completedAt` timestamps |
 | **Data** | MongoDB with per-user indexes, account-scoped queries, REST API via Express |
@@ -195,7 +197,7 @@ Click the bell in the header to allow browser notifications. TDL reminds you fro
 
 ## Tech Stack
 
-- **Frontend:** React 18, Vite 5, Tailwind CSS, Framer Motion, Zustand, Lucide React, Three.js
+- **Frontend:** React 18, Vite 5, Tailwind CSS, Framer Motion, Zustand, Lucide React, Three.js, react-markdown + remark-gfm
 - **Backend:** Express 4, Mongoose 8, bcryptjs, jsonwebtoken
 - **Database:** MongoDB (Atlas or self-hosted)
 - **Auth:** Email + password with bcrypt hashes and signed JWTs
@@ -267,8 +269,8 @@ All failures return `{ "error": "..." }` with `400` (validation), `401` (missing
 ## Customization
 
 - **Design tokens:** Surfaces, text, borders, and the brand color live as CSS variables in `frontend/src/index.css`; Tailwind maps them in `tailwind.config.js`.
-- **Theme:** The app uses a single light theme; the former light/dark switcher has been removed and any stored `nova.theme` preference is cleared on load.
-- **Brand color:** A single fixed teal palette. The former accent picker, its command, and its `localStorage` preference (`nova.accent`) have been removed.
+- **Theme:** Light and dark palettes are defined as `.dark` token overrides in `frontend/src/index.css`. The toggle stores `theme` in `tdl.settings`, applies the `.dark` class to `<html>`, and is available from the header, Profile → Appearance, and the command palette.
+- **Brand color:** A single fixed violet palette. The former accent picker, its command, and its `localStorage` preference (`nova.accent`) have been removed.
 - **API base URL:** The client uses the relative `/api` path. Vite proxies it to `http://localhost:5001` in development (`frontend/vite.config.js`); in production, serve `dist/` behind a proxy that forwards `/api` to the backend.
 - **Backend port:** `PORT` in `backend/.env`.
 - **Session lifetime:** `JWT_EXPIRES_IN` in `backend/.env` (for example `12h`, `7d`, `30d`).
