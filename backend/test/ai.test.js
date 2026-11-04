@@ -7,10 +7,13 @@ const assert = require('node:assert/strict');
 
 // Guarantee the "not configured" path even if the developer exports a key.
 delete process.env.GEMINI_API_KEY;
+delete process.env.GROQ_API_KEY;
+delete process.env.OPENROUTER_API_KEY;
 
 const { createApp } = require('../app');
 const { normalizePlan, normalizeContent, normalizeSummary } = require('../lib/ai');
 const gemini = require('../lib/gemini');
+const ai = require('../lib/ai-provider');
 
 let server;
 let baseUrl;
@@ -183,8 +186,8 @@ test('Gemini returns a friendly retryable error after every model is overloaded'
 });
 
 test('AI routes expose retryable service failures', async () => {
-  const original = gemini.generateJson;
-  gemini.generateJson = async () => {
+  const original = ai.generateJson;
+  ai.generateJson = async () => {
     const error = new Error('The AI model is busy right now. Please try again in a moment.');
     error.status = 503;
     error.retryable = true;
@@ -198,7 +201,7 @@ test('AI routes expose retryable service failures', async () => {
     assert.equal(plan.body.retryable, true);
     assert.match(plan.body.error, /busy/i);
   } finally {
-    gemini.generateJson = original;
+    ai.generateJson = original;
   }
 });
 

@@ -5,6 +5,7 @@ import {
   Bell,
   Check,
   Crown,
+  Loader2,
   ShieldCheck,
   Sparkles,
   X,
@@ -41,6 +42,8 @@ export default function PlanDialog() {
   const setOpen = useStore((s) => s.setPlanDialogOpen);
   const plan = useStore((s) => s.plan);
   const setPlan = useStore((s) => s.setPlan);
+  const planBusy = useStore((s) => s.planBusy);
+  const planError = useStore((s) => s.planError);
   const usage = useStore((s) => s.planUsage);
   const current = getPlan(plan);
 
@@ -85,8 +88,8 @@ export default function PlanDialog() {
               Pick a pace that fits.
             </h2>
             <p className="mt-1.5 max-w-xl text-sm text-muted">
-              Plans decide your monthly AI allowance and file imports. Reminders work on every
-              plan.
+              Plans decide your monthly AI allowance, file imports, and reminder features.
+              Smart reminders and voice calls are Premium-only.
             </p>
           </div>
           <button
@@ -104,14 +107,14 @@ export default function PlanDialog() {
             <Bell className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-semibold text-ink">Notifications stay on every plan</p>
+            <p className="text-xs font-semibold text-ink">Smart reminders are Premium</p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
-              In-app reminders are always included. Browser alerts are included too when you
-              allow them.
+              In-app alerts, browser notifications, and voice calls are included with Premium.
+              Free and Pro keep unlimited notes and tasks.
             </p>
           </div>
           <span className="ml-auto shrink-0 rounded-full bg-panel px-2 py-1 text-[10px] font-semibold text-accent">
-            Included
+            Premium
           </span>
         </div>
 
@@ -191,9 +194,19 @@ export default function PlanDialog() {
                       type="button"
                       onClick={() => setPlan(item.id)}
                       className={tone.button}
+                      disabled={planBusy}
                     >
-                      {item.cta}
-                      <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      {planBusy ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                          Switching…
+                        </>
+                      ) : (
+                        <>
+                          {item.cta}
+                          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -201,6 +214,12 @@ export default function PlanDialog() {
             );
           })}
         </div>
+
+        {planError && (
+          <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger" role="alert">
+            {planError}
+          </p>
+        )}
 
         <div className="mt-4 flex flex-col gap-2 border-t border-line pt-3 text-[10px] leading-relaxed text-faint sm:flex-row sm:items-center sm:justify-between">
           <p>

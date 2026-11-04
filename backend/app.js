@@ -20,9 +20,10 @@ const { createRateLimiter } = require('./lib/rate-limit');
 const { users: defaultUsers } = require('./repositories/users.repo');
 const { createPushRepo } = require('./repositories/push.repo');
 const { createReminderEventsRepo } = require('./repositories/reminder-events.repo');
+const planPolicy = require('./lib/plans');
 const reminders = require('./services/reminders');
 const push = require('./services/push');
-const gemini = require('./lib/gemini');
+const ai = require('./lib/ai-provider');
 const {
   buildPlanPrompt,
   buildEnhancePrompt,
@@ -133,11 +134,7 @@ function createApp({
   app.get(
     '/api/ai/status',
     wrap(async (req, res) => {
-      res.json({
-        configured: gemini.isConfigured(),
-        model: gemini.getModel(),
-        fallbackModel: gemini.getFallbackModel(),
-      });
+      res.json(ai.status());
     })
   );
 
@@ -260,6 +257,36 @@ function createApp({
     })
   );
 
+  // Demo billing: plans apply immediately and are stored on the account so
+  // reminder access cannot be unlocked by editing localStorage.
+  app.put(
+    '/api/auth/plan',
+    authenticate,
+    wrap(async (req, res) => {
+      if (typeof users.updatePlan !== 'function') {
+        return res.status(501).json({ error: 'Plan changes are not available.' });
+      }
+      const plan = planPolicy.normalizePlan(req.body?.plan);
+      const updated = await users.updatePlan(req.userId, plan);
+      if (!updated) {
+        return res.status(401).json({ error: 'Your account no longer exists.' });
+      }
+
+      // Leaving Premium must stop queued pushes and calls immediately.
+      if (!planPolicy.isPremiumPlan(plan)) {
+        if (typeof users.disableReminders === 'function') {
+          await users.disableReminders(req.userId).catch(() => {});
+        }
+        if (isDatabaseConnected()) {
+          await createReminderEventsRepo().cancelForUser(req.userId).catch(() => {});
+        }
+      }
+
+      const fresh = await users.findById(req.userId);
+      return res.json({ user: toUserDTO(fresh ?? updated) });
+    })
+  );
+
   // Editable profile. Email/password live in /api/auth; only display fields here.
   app.put(
     '/api/profile',
@@ -308,7 +335,11 @@ function createApp({
     '/api/reminders/settings',
     wrap(async (req, res) => {
       const user = await currentUser(req);
-      return res.json({ settings: toUserDTO(user).reminders, voice: reminders.status() });
+      const settings = toUserDTO(user).reminders;
+      // A downgraded account may still have legacy settings; never advertise
+      // reminders as enabled when the plan does not include them.
+      if (!planPolicy.isPremiumPlan(user.plan)) settings.enabled = false;
+      return res.json({ settings, voice: reminders.status() });
     })
   );
 
@@ -387,8 +418,10 @@ function createApp({
   app.get(
     '/api/reminders/events',
     wrap(async (req, res) => {
+      const user = await currentUser(req);
+      if (!planPolicy.isPremiumPlan(user.plan)) return res.json({ events: [] });
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
-      return res.json({ events: await reminders.listEvents(req.userId, limit) });
+      return res.json({ events: await reminders.listEvents(user._id, limit) });
     })
   );
 
@@ -587,10 +620,11 @@ function createApp({
     })
   );
 
-  // ---------- AI (Gemini) ----------
+  // ---------- AI (Gemini / Groq / OpenRouter) ----------
   /**
    * Turns a topic or an uploaded file into notes + tasks and saves both.
-   * The browser never sees the API key; Gemini is called server-side.
+   * The browser never sees an API key; the configured AI provider is called
+   * server-side with automatic fallback between free tiers.
    */
   app.post(
     '/api/ai/plan',
@@ -604,7 +638,7 @@ function createApp({
       }
 
       const files = hasFile ? [{ mimeType: file.mimeType, data: file.data }] : [];
-      const raw = await gemini.generateJson({
+      const raw = await ai.generateJson({
         prompt: buildPlanPrompt({ topic, fileName: hasFile ? file.name : null }),
         files,
       });
@@ -612,7 +646,7 @@ function createApp({
       const plan = normalizePlan(raw);
       if (plan.notes.length === 0 && plan.tasks.length === 0) {
         return res.status(422).json({
-          error: 'Gemini did not return a usable plan. Try rephrasing the topic.',
+          error: 'The AI did not return a usable plan. Try rephrasing the topic.',
         });
       }
 
@@ -645,12 +679,12 @@ function createApp({
         return res.status(400).json({ error: 'A note with content is required.' });
       }
 
-      const raw = await gemini.generateJson({
+      const raw = await ai.generateJson({
         prompt: buildEnhancePrompt({ title, content }),
       });
       const improved = normalizeContent(raw);
       if (!improved) {
-        return res.status(422).json({ error: 'Gemini returned an empty note. Try again.' });
+        return res.status(422).json({ error: 'The AI returned an empty note. Try again.' });
       }
       return res.json({ content: improved });
     })
@@ -666,7 +700,7 @@ function createApp({
         return res.status(400).json({ error: 'A note or a list of notes is required.' });
       }
 
-      const raw = await gemini.generateJson({
+      const raw = await ai.generateJson({
         prompt:
           collection.length > 0
             ? buildSummarizeAllPrompt({ notes: collection })
@@ -674,7 +708,7 @@ function createApp({
       });
       const summary = normalizeSummary(raw);
       if (!summary) {
-        return res.status(422).json({ error: 'Gemini returned an empty summary. Try again.' });
+        return res.status(422).json({ error: 'The AI returned an empty summary. Try again.' });
       }
       return res.json({ summary });
     })
@@ -688,7 +722,7 @@ function createApp({
   app.use((error, req, res, next) => {
     const { status, body } = mapError(error);
     if (status >= 500 && error.status) {
-      // Expected service failures (e.g. Gemini) get a concise line, not a stack.
+      // Expected service failures (e.g. an AI provider) get a concise line, not a stack.
       const detail =
         error.providerMessage && error.providerMessage !== error.message
           ? `${error.message} (${error.providerMessage})`

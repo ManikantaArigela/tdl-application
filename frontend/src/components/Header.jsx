@@ -6,6 +6,7 @@ import {
   BellRing,
   CheckCheck,
   Clock3,
+  Crown,
   Moon,
   Search,
   Sparkles,
@@ -14,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { isPremiumPlan } from '../lib/plans';
 import { dayKey, dueTimestamp, formatDate, formatDueTime, isOverdue } from '../lib/format';
 
 const PERMISSION_COPY = {
@@ -45,8 +47,11 @@ export default function Header() {
   const sendTestNotification = useStore((s) => s.sendTestNotification);
   const todos = useStore((s) => s.todos);
   const setActiveView = useStore((s) => s.setActiveView);
+  const plan = useStore((s) => s.plan);
+  const setPlanDialogOpen = useStore((s) => s.setPlanDialogOpen);
   const theme = useStore((s) => s.settings.theme);
   const toggleTheme = useStore((s) => s.toggleTheme);
+  const premium = isPremiumPlan(plan);
 
   const [notifyOpen, setNotifyOpen] = React.useState(false);
   const [tested, setTested] = React.useState(false);
@@ -74,7 +79,9 @@ export default function Header() {
       .sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
   }, [todos, today]);
 
-  const status = statusTone(notificationPermission);
+  const status = premium
+    ? statusTone(notificationPermission)
+    : { label: 'Premium', tone: 'text-accent' };
   const permissionCopy = PERMISSION_COPY[notificationPermission] ?? PERMISSION_COPY.default;
 
   React.useEffect(() => {
@@ -228,10 +235,10 @@ export default function Header() {
               transition={{ duration: 0.45 }}
               className="inline-flex"
             >
-              {notifyEnabled ? (
-                <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
-              ) : (
+              {premium && !notifyEnabled ? (
                 <BellOff className="h-[18px] w-[18px]" aria-hidden="true" />
+              ) : (
+                <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
               )}
             </motion.span>
             {attention.length > 0 ? (
@@ -245,6 +252,7 @@ export default function Header() {
                 {attention.length > 9 ? '9+' : attention.length}
               </motion.span>
             ) : (
+              premium &&
               notifyEnabled && (
                 <span
                   className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-pop-pink"
@@ -275,32 +283,61 @@ export default function Header() {
                   <span className={`text-[11px] font-medium ${status.tone}`}>{status.label}</span>
                 </div>
 
-                <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-line bg-raised/60 p-3">
-                  <div>
-                    <p className="text-xs font-medium text-ink">Remind me when tasks are due</p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-faint">
-                      Browser alerts when allowed, plus an in-app toast.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={notifyEnabled}
-                    aria-label="Enable task reminders"
-                    onClick={toggleReminders}
-                    className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${
-                      notifyEnabled ? 'bg-accent' : 'bg-line'
-                    }`}
-                  >
-                    <motion.span
-                      layout
-                      transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ${
-                        notifyEnabled ? 'left-[1.375rem]' : 'left-0.5'
+                {premium ? (
+                  <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-line bg-raised/60 p-3">
+                    <div>
+                      <p className="text-xs font-medium text-ink">Remind me when tasks are due</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-faint">
+                        Browser alerts when allowed, plus an in-app toast.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={notifyEnabled}
+                      aria-label="Enable task reminders"
+                      onClick={toggleReminders}
+                      className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${
+                        notifyEnabled ? 'bg-accent' : 'bg-line'
                       }`}
-                    />
-                  </button>
-                </div>
+                    >
+                      <motion.span
+                        layout
+                        transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ${
+                          notifyEnabled ? 'left-[1.375rem]' : 'left-0.5'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-accent/15 bg-lavender p-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-panel text-accent">
+                        <Crown className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-semibold text-ink">
+                          Reminders are a Premium feature
+                        </p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
+                          Upgrade to get in-app alerts, browser notifications, and voice calls
+                          when tasks are due.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotifyOpen(false);
+                        setPlanDialogOpen(true);
+                      }}
+                      className="btn-primary mt-2.5 w-full px-3 py-1.5 text-xs"
+                    >
+                      Upgrade to Premium
+                    </button>
+                  </div>
+                )}
 
                 <div className="mt-2.5 rounded-xl border border-line bg-panel p-3">
                   <div className="flex items-center justify-between gap-2">
@@ -354,41 +391,53 @@ export default function Header() {
                   )}
                 </div>
 
-                <p className="mt-2.5 rounded-lg bg-raised/70 px-2.5 py-2 text-[11px] leading-relaxed text-muted">
-                  {permissionCopy}
-                </p>
+                {premium && (
+                  <>
+                    <p className="mt-2.5 rounded-lg bg-raised/70 px-2.5 py-2 text-[11px] leading-relaxed text-muted">
+                      {permissionCopy}
+                    </p>
 
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  {notificationPermission === 'default' && (
-                    <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={sendTest}>
-                      Allow browser alerts
-                    </button>
-                  )}
-                  {notificationPermission === 'granted' && (
-                    <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={sendTest}>
-                      {tested ? 'Test sent' : 'Send test'}
-                    </button>
-                  )}
-                  {notificationPermission === 'denied' && (
-                    <span className="text-[10px] font-medium text-danger">
-                      Update site permissions to enable alerts.
-                    </span>
-                  )}
-                  {!notifyEnabled && (
-                    <button
-                      type="button"
-                      onClick={() => setNotifyEnabled(true)}
-                      className="ml-auto text-[10px] font-semibold text-accent hover:underline"
-                    >
-                      Keep in-app reminders on
-                    </button>
-                  )}
-                </div>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                      {notificationPermission === 'default' && (
+                        <button
+                          type="button"
+                          className="btn-primary px-3 py-1.5 text-xs"
+                          onClick={sendTest}
+                        >
+                          Allow browser alerts
+                        </button>
+                      )}
+                      {notificationPermission === 'granted' && (
+                        <button
+                          type="button"
+                          className="btn-ghost px-3 py-1.5 text-xs"
+                          onClick={sendTest}
+                        >
+                          {tested ? 'Test sent' : 'Send test'}
+                        </button>
+                      )}
+                      {notificationPermission === 'denied' && (
+                        <span className="text-[10px] font-medium text-danger">
+                          Update site permissions to enable alerts.
+                        </span>
+                      )}
+                      {!notifyEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => setNotifyEnabled(true)}
+                          className="ml-auto text-[10px] font-semibold text-accent hover:underline"
+                        >
+                          Keep in-app reminders on
+                        </button>
+                      )}
+                    </div>
 
-                <p className="mt-2 text-[10px] leading-relaxed text-faint">
-                  On iPhone, add TDL to your Home Screen, then allow notifications. In-app
-                  reminders are included on every plan.
-                </p>
+                    <p className="mt-2 text-[10px] leading-relaxed text-faint">
+                      On iPhone, add TDL to your Home Screen, then allow notifications.
+                      Reminders are included with Premium.
+                    </p>
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

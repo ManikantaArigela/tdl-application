@@ -123,6 +123,17 @@ export default function AIPlannerDialog() {
       return;
     }
 
+    if (isPdf) {
+      const geminiConfigured = aiStatus?.providers?.find((item) => item.id === 'gemini')
+        ?.configured;
+      if (geminiConfigured === false) {
+        setError(
+          'PDF imports need a Gemini key. Add GEMINI_API_KEY to backend/.env, or attach a text file instead.'
+        );
+        return;
+      }
+    }
+
     setError('');
     try {
       if (isText) {
@@ -181,7 +192,7 @@ export default function AIPlannerDialog() {
           ));
       setError(
         notConfigured
-          ? 'Gemini is not configured. Add GEMINI_API_KEY to backend/.env and restart the server.'
+          ? 'AI is not configured. Add a free key (GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY) to backend/.env and restart the server.'
           : /high demand|overloaded|temporarily|try again later/i.test(message)
           ? 'The AI is busy right now. Your topic is still here — try again in a moment.'
           : message
@@ -247,8 +258,11 @@ export default function AIPlannerDialog() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs leading-relaxed text-ink">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
             <span>
-              AI is not configured yet. Add <code className="font-mono">GEMINI_API_KEY</code> to{' '}
-              <code className="font-mono">backend/.env</code> and restart the server.
+              AI is not configured yet. Add one free key to{' '}
+              <code className="font-mono">backend/.env</code>:{' '}
+              <code className="font-mono">GEMINI_API_KEY</code> (recommended),{' '}
+              <code className="font-mono">GROQ_API_KEY</code>, or{' '}
+              <code className="font-mono">OPENROUTER_API_KEY</code>, then restart the server.
             </span>
           </div>
         )}
@@ -263,6 +277,11 @@ export default function AIPlannerDialog() {
               ? 'Unlimited AI plans'
               : `${remaining} of ${formatLimit(limits.planner)} AI plans left this month`}
           </span>
+          {configured && aiStatus?.provider && (
+            <span className="text-[10px] text-faint" title={aiStatus.model || undefined}>
+              · {aiStatus.providerLabel || aiStatus.provider}
+            </span>
+          )}
           {plan !== 'premium' && (
             <button
               type="button"
@@ -490,7 +509,7 @@ export default function AIPlannerDialog() {
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
               <p className="text-[11px] text-faint">
-                Gemini creates notes and tasks for you — review before relying on them.
+                Nova AI creates notes and tasks for you — review before relying on them.
               </p>
               <button type="submit" className="btn-primary shrink-0" disabled={!canGenerate}>
                 {status === 'loading' ? (

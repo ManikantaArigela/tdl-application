@@ -78,6 +78,7 @@ test('in-app calls can be enabled without a SIP address', async () => {
   const user = {
     _id: 'u_settings',
     email: 'inapp@example.com',
+    plan: 'premium',
     reminders: { timezone: 'UTC' },
   };
   const repo = {

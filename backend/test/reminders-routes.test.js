@@ -21,6 +21,7 @@ const users = {
       _id: `u_${++sequence}`,
       email,
       passwordHash,
+      plan: 'premium',
       createdAt: new Date(),
       reminders: {},
       sipVerify: {},

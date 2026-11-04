@@ -29,12 +29,15 @@ nova-notes/
 │   │   ├── dto.js                # MongoDB documents → camelCase API types
 │   │   ├── errors.js             # Mongo/Express error → status mapping
 │   │   ├── rate-limit.js         # In-memory login/signup throttle
+│   │   ├── plans.js              # Account-plan policy (Premium-only reminders)
 │   │   ├── gemini.js             # Server-side Gemini client
+│   │   ├── openai-compatible.js  # Groq / OpenRouter chat client
+│   │   ├── ai-provider.js        # Provider order, fallback, and AI status
 │   │   └── ai.js                 # Prompt builders + model-output normalizers
 │   ├── models/
 │   │   ├── note.js               # notes collection (per-user indexes)
 │   │   ├── todo.js               # todos collection (per-user indexes)
-│   │   └── user.js               # accounts collection (email + bcrypt hash)
+│   │   └── user.js               # accounts collection (email, hash, plan, reminders)
 │   ├── repositories/
 │   │   ├── notes.repo.js         # MongoDB queries scoped to one userId
 │   │   ├── todos.repo.js
@@ -99,9 +102,15 @@ JWT_SECRET=replace-with-a-long-random-value
 JWT_EXPIRES_IN=30d
 AUTH_RATE_LIMIT_MAX=20
 
-# Optional: enables the AI planner, note help, and summaries.
+# Optional: enables the AI planner, note help, and summaries with any one of
+# these free tiers. See "Free AI providers" below for links.
+AI_PROVIDER=auto
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.5-flash
+GROQ_API_KEY=
+GROQ_MODEL=openai/gpt-oss-120b
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=openrouter/free
 ```
 
 Generate a JWT secret with:
@@ -111,6 +120,20 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
 The server refuses to start when `MONGODB_URI` or `JWT_SECRET` is missing, or when MongoDB cannot be reached. That way a misconfigured deployment fails loudly instead of serving empty data.
+
+### Free AI providers (optional, $0)
+
+Nova AI works with **any one** of these keys. Add at least one to `backend/.env` and restart the backend:
+
+| Provider | Best for | Free tier | Get a key |
+|---|---|---|---|
+| **Gemini** (recommended) | Best quality, PDFs, images | Generous daily requests on `gemini-3.5-flash` / `gemini-2.5-flash` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| **Groq** | Very fast text responses | ~30 requests/min, ~1,000/day, 200K tokens/day | [console.groq.com/keys](https://console.groq.com/keys) |
+| **OpenRouter** | Extra free models | ~50 free requests/day without credits | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
+
+**Groq is not xAI “Grok.”** Groq is a free, fast inference provider. xAI’s Grok API is paid, so this app does not use it.
+
+Set `AI_PROVIDER=auto` (the default) to try every configured provider in order: **Gemini → Groq → OpenRouter**. If one free tier is rate-limited, the next one takes over. To pin a provider, use `AI_PROVIDER=gemini`, `AI_PROVIDER=groq`, or `AI_PROVIDER=openrouter`. PDF/image uploads require Gemini; text files work with any provider. `GET /api/ai/status` shows which provider and model are active without exposing keys.
 
 ### 3. Start the frontend (new terminal)
 
@@ -163,7 +186,7 @@ The suite uses an in-memory repository implementation, so it needs no MongoDB in
 - Rate limiting is per process. For multiple backend instances, put a shared limiter (Redis or an API gateway) in front of `/api/auth`.
 - Rotating `JWT_SECRET` signs every user out.
 
-The AI endpoints are protected too, so visitors cannot spend your Gemini quota without an account.
+The AI endpoints are protected too, so visitors cannot spend your free AI quota without an account.
 
 ---
 
@@ -175,8 +198,8 @@ The AI endpoints are protected too, so visitors cannot spend your Gemini quota w
 | **Notes** | Create, edit, pin, archive, trash (with Undo), tag, search (title/content/tags), click-to-filter tag chips, Markdown write/split/preview editor, one-click “Turn into task”, debounced autosave with save status, AI improve + summarize per note |
 | **Todos** | Card-based task board with due dates **and times**, priority sorting (or manual order / due-date order), recurring tasks (daily or weekly), drag onto completed/carried-over boxes, inline carry action, clear completed, trash with Undo |
 | **Trash** | Persistent soft-delete for notes and tasks, per-item restore, permanent delete, and Empty Trash |
-| **Reminders** | In-app toasts and browser notifications, plus optional server Web Push at T-30/T-10 and a free in-app voice call at the due time (answer, then complete / snooze / stop). Optional Linphone SIP calls through Asterisk are also supported |
-| **AI (Gemini)** | Planner that turns a topic, pasted text, or PDF into notes + tasks automatically; student-friendly note rewriting; per-note summaries; a "Study brief" that summarizes every note on the Notes tab |
+| **Reminders (Premium)** | In-app toasts and browser notifications, plus optional server Web Push at T-30/T-10 and a free in-app voice call at the due time (answer, then complete / snooze / stop). Optional Linphone SIP calls through Asterisk are also supported. Reminders are available on **Premium only**; Free and Pro keep unlimited notes and tasks |
+| **AI (free providers)** | Planner that turns a topic, pasted text, or PDF into notes + tasks automatically; student-friendly note rewriting; per-note summaries; a "Study brief" that summarizes every note on the Notes tab. Works with Gemini, Groq, or OpenRouter free tiers |
 | **Design** | Editorial paper/ink theme, persisted light/dark toggle (header, settings, command palette), single brand palette, semantic CSS-variable tokens, reduced-motion support |
 | **UI / 3D** | Clean note cards with a subtle hover lift, liquid completion bag, lazy-loaded ambient Three.js starfield, Framer Motion with global reduced-motion policy |
 | **Interactions** | Command palette (`Cmd+K` / `Ctrl+K`) with global note, task, and command search, quick capture (`Cmd+J` / `Ctrl+J`), responsive navigation drawer, skip link, focus states |
@@ -184,9 +207,21 @@ The AI endpoints are protected too, so visitors cannot spend your Gemini quota w
 | **Analytics** | Completion rate, streak, notes edited this week, seven-day completion chart from real `completedAt` timestamps |
 | **Data** | MongoDB with per-user indexes, account-scoped queries, REST API via Express |
 
+### Plans and reminders
+
+Plans are stored on the account (not just in `localStorage`), so reminder access is enforced by the backend:
+
+| Plan | AI planner / note actions | PDF imports | Reminders + voice calls |
+|---|---|---|---|
+| **Free** | 5 / 10 per month | No | No |
+| **Pro** (₹20/mo) | 100 / 100 per month | Yes | No |
+| **Premium** (₹50/mo) | Unlimited | Yes | **Yes** |
+
+Switching plans is demo billing: the change applies instantly and is saved on the account. Downgrading out of Premium turns reminders off and cancels queued pushes/calls.
+
 ### Notifications
 
-Click the bell in the header to allow browser notifications. In-app toasts appear even when browser permission is denied. With the backend running, the scheduler also sends **server Web Push** at T-30 and T-10, so reminders arrive when the app is closed.
+Reminders are a **Premium** feature. Click the bell in the header to allow browser notifications. In-app toasts appear even when browser permission is denied. With the backend running, the scheduler also sends **server Web Push** at T-30 and T-10, so reminders arrive when the app is closed.
 
 Voice calls are optional and completely free. The default `VOICE_PROVIDER=inapp` sends a high-priority Web Push at the due time; tapping **Answer** opens the Nova call screen and the device speaks the reminder with its built-in text-to-speech. No SIP account, phone number, or PSTN bill is involved.
 
@@ -207,7 +242,7 @@ For a more phone-like experience, set `VOICE_PROVIDER=ari` and use the free Linp
 - **Backend:** Express 4, Mongoose 8, bcryptjs, jsonwebtoken
 - **Database:** MongoDB (Atlas or self-hosted)
 - **Auth:** Email + password with bcrypt hashes and signed JWTs
-- **AI:** Google Gemini via the Generative Language REST API (server-side key)
+- **AI:** Gemini, Groq, or OpenRouter free tiers via server-side keys, with automatic fallback
 - **State:** Zustand with API-synchronized actions
 
 ---
@@ -251,15 +286,15 @@ Passwords must be 8–200 characters. Emails are normalized to lowercase.
 
 `dueTime` is a 24-hour `HH:MM` string or `null`. `repeat` is `none`, `daily`, or `weekly`; completing a recurring task rolls its due date forward instead of closing it.
 
-### AI (Gemini)
+### AI (Gemini / Groq / OpenRouter)
 | Method | Endpoint | Body | Description |
 |---|---|---|---|
-| `GET` | `/api/ai/status` | — | `{ configured, model }`; public, no key required |
+| `GET` | `/api/ai/status` | — | `{ configured, provider, providerLabel, model, fallbackModel, providers }`; public, no key required |
 | `POST` | `/api/ai/plan` | `{ topic?, file? }` | Generate and save notes + tasks; `file` is `{ name, mimeType, data }` (base64) |
 | `POST` | `/api/ai/notes/enhance` | `{ title, content }` | Rewrite a note into structured study notes |
 | `POST` | `/api/ai/notes/summarize` | `{ title, content }` or `{ notes: [...] }` | Summarize one note or a collection |
 
-All AI routes return `503` when `GEMINI_API_KEY` is missing, and `401` without a session. Uploads are handled server-side and forwarded to Gemini; the browser only talks to this API.
+All AI routes return `503` when no provider key is configured, and `401` without a session. Uploads are handled server-side and forwarded to Gemini (PDFs/images require Gemini); the browser only talks to this API. `AI_PROVIDER=auto` tries Gemini, then Groq, then OpenRouter, so a rate-limited free tier falls through to the next one.
 
 ### Health
 | Method | Endpoint | Description |

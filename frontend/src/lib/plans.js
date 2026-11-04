@@ -10,8 +10,6 @@ export const PLANS = [
     highlight: false,
     features: [
       'Unlimited notes and tasks',
-      'In-app reminders on every device',
-      'Browser notifications when allowed',
       '5 AI planner runs each month',
       '10 AI note actions each month',
       'Markdown export',
@@ -32,8 +30,7 @@ export const PLANS = [
       '100 AI planner runs each month',
       '100 AI note actions each month',
       'PDF imports',
-      'Priority reminder center',
-      'All current features',
+      'Priority AI queue',
     ],
   },
   {
@@ -42,25 +39,53 @@ export const PLANS = [
     price: 50,
     cadence: 'month',
     tagline: 'For power users.',
-    description: 'No AI limits, priority support, and early access.',
+    description: 'Unlimited AI, smart reminders, and voice calls.',
     cta: 'Choose Premium',
     highlight: false,
-    badge: 'Unlimited',
+    badge: 'Everything',
     features: [
       'Everything in Pro',
       'Unlimited AI planner runs',
       'Unlimited AI note actions',
+      'Smart reminders + voice calls',
       'Priority support',
       'Early access to new tools',
-      'Support independent software',
     ],
   },
 ];
 
+/**
+ * Entitlements are the single source of truth for plan-gated UI. The backend
+ * enforces the same rules, so changing localStorage cannot unlock a feature.
+ */
 export const PLAN_LIMITS = {
-  free: { planner: 5, notes: 10, pdf: false },
-  pro: { planner: 100, notes: 100, pdf: true },
-  premium: { planner: Infinity, notes: Infinity, pdf: true },
+  free: {
+    planner: 5,
+    notes: 10,
+    pdf: false,
+    reminders: false,
+    voiceCalls: false,
+    prioritySupport: false,
+    earlyAccess: false,
+  },
+  pro: {
+    planner: 100,
+    notes: 100,
+    pdf: true,
+    reminders: false,
+    voiceCalls: false,
+    prioritySupport: false,
+    earlyAccess: false,
+  },
+  premium: {
+    planner: Infinity,
+    notes: Infinity,
+    pdf: true,
+    reminders: true,
+    voiceCalls: true,
+    prioritySupport: true,
+    earlyAccess: true,
+  },
 };
 
 export function normalizePlan(value) {
@@ -73,6 +98,14 @@ export function getPlan(value) {
 
 export function getPlanLimits(value) {
   return PLAN_LIMITS[normalizePlan(value)] ?? PLAN_LIMITS.free;
+}
+
+export function isPremiumPlan(value) {
+  return normalizePlan(value) === 'premium';
+}
+
+export function planAllows(value, feature) {
+  return Boolean(getPlanLimits(value)[feature]);
 }
 
 export function formatLimit(value) {

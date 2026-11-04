@@ -7,7 +7,7 @@ import {
   currentPushSubscription,
 } from '../lib/notifications';
 import { auth } from '../lib/auth';
-import { normalizePlan } from '../lib/plans';
+import { isPremiumPlan, normalizePlan } from '../lib/plans';
 import { loadSettings, saveSettings, clearSettings, applyTheme } from '../lib/settings';
 import { normalizeTag, noteMatchesFilters } from '../lib/notes';
 import { toast } from './useToastStore';
@@ -126,6 +126,8 @@ const emptyWorkspace = {
   aiSummaryOpen: false,
   exportOpen: false,
   planDialogOpen: false,
+  planBusy: false,
+  planError: null,
   profile: emptyProfile,
   reminderSettings: emptyReminderSettings,
   reminderEvents: [],
@@ -214,6 +216,8 @@ export const useStore = create((set, get) => ({
   aiSummaryOpen: false,
   exportOpen: false,
   planDialogOpen: false,
+  planBusy: false,
+  planError: null,
   pendingPlan: readPreference(PENDING_PLAN_KEY, null),
   plan: readPlan(),
   planUsage: readPlanUsage(),
@@ -266,10 +270,15 @@ export const useStore = create((set, get) => ({
         return;
       }
 
+      const nextPlan = user?.plan ? normalizePlan(user.plan) : get().plan;
+      storePreference(PLAN_KEY, nextPlan);
       set({
         session: { user },
         user,
         profile: profileOf(user),
+        plan: nextPlan,
+        planBusy: false,
+        planError: null,
         authReady: true,
         authInitializing: false,
       });
@@ -289,10 +298,15 @@ export const useStore = create((set, get) => ({
     set({ authBusy: true, authError: null, authNotice: null });
     try {
       const { user } = await auth.signIn(email.trim(), password);
+      const nextPlan = normalizePlan(user.plan);
+      storePreference(PLAN_KEY, nextPlan);
       set({
         session: { user },
         user,
         profile: profileOf(user),
+        plan: nextPlan,
+        planBusy: false,
+        planError: null,
         authBusy: false,
         authError: null,
       });
@@ -309,22 +323,38 @@ export const useStore = create((set, get) => ({
     try {
       const { user } = await auth.signUp(email.trim(), password);
       const pending = readPreference(PENDING_PLAN_KEY, null);
-      const nextPlan = pending ? normalizePlan(pending) : get().plan;
+      let nextUser = user;
+      let nextPlan = normalizePlan(user.plan);
+
+      // The landing page lets visitors choose a plan before creating an account.
+      // Persist that choice on the new account so gating is server-enforced.
       if (pending) {
-        storePreference(PLAN_KEY, nextPlan);
+        const chosen = normalizePlan(pending);
+        try {
+          const result = await api.updatePlan(chosen);
+          nextUser = result.user ?? { ...user, plan: chosen };
+          nextPlan = normalizePlan(nextUser.plan);
+        } catch {
+          nextPlan = normalizePlan(user.plan);
+        }
         try {
           localStorage.removeItem(PENDING_PLAN_KEY);
         } catch {
           /* ignore */
         }
       }
+
+      storePreference(PLAN_KEY, nextPlan);
       set({
-        session: { user },
-        user,
-        profile: profileOf(user),
+        session: { user: nextUser },
+        user: nextUser,
+        profile: profileOf(nextUser),
+        plan: nextPlan,
+        planBusy: false,
+        planError: null,
         authBusy: false,
         authError: null,
-        ...(pending ? { plan: nextPlan, pendingPlan: null } : {}),
+        pendingPlan: null,
       });
       await get().init();
       return { error: null, needsConfirmation: false };
@@ -369,7 +399,9 @@ export const useStore = create((set, get) => ({
     if (!get().session) return;
 
     const userId = get().user?.id;
-    set({ initializing: true });
+    const nextPlan = get().user?.plan ? normalizePlan(get().user.plan) : get().plan;
+    storePreference(PLAN_KEY, nextPlan);
+    set({ initializing: true, plan: nextPlan });
     try {
       const [notes, todos, trashedNotes, trashedTodos, reminder] = await Promise.all([
         api.getNotes(),
@@ -399,7 +431,11 @@ export const useStore = create((set, get) => ({
 
       // Respect the in-app toggle: browser permission alone is not consent to
       // re-enable push after the user turned reminders off.
-      if (get().notifyEnabled && get().notificationPermission === 'granted') {
+      if (
+        isPremiumPlan(get().plan) &&
+        get().notifyEnabled &&
+        get().notificationPermission === 'granted'
+      ) {
         get().enablePush();
       }
     } catch (err) {
@@ -765,10 +801,40 @@ export const useStore = create((set, get) => ({
     storePreference(PENDING_PLAN_KEY, next);
     set({ pendingPlan: next });
   },
-  setPlan: (planId) => {
+  setPlan: async (planId) => {
     const next = normalizePlan(planId);
-    storePreference(PLAN_KEY, next);
-    set({ plan: next, planDialogOpen: false });
+    const previous = get().plan;
+    if (next === previous) {
+      set({ planDialogOpen: false, planError: null });
+      return { error: null };
+    }
+
+    set({ planBusy: true, planError: null });
+    try {
+      // Plan is account-level now, so wait for the server before unlocking UI.
+      const { user } = await api.updatePlan(next);
+      const serverPlan = normalizePlan(user?.plan ?? next);
+      storePreference(PLAN_KEY, serverPlan);
+      set({
+        plan: serverPlan,
+        user,
+        profile: profileOf(user),
+        planBusy: false,
+        planError: null,
+        planDialogOpen: false,
+        ...(serverPlan !== 'premium'
+          ? {
+              reminderSettings: { ...get().reminderSettings, enabled: false },
+              pushSubscribed: false,
+            }
+          : {}),
+      });
+      return { error: null };
+    } catch (error) {
+      storePreference(PLAN_KEY, previous);
+      set({ planBusy: false, planError: error.message });
+      return { error };
+    }
   },
   recordAIUse: (kind) => {
     if (kind !== 'planner' && kind !== 'notes') return;
@@ -817,11 +883,10 @@ export const useStore = create((set, get) => ({
     const next = get().settings.theme === 'dark' ? 'light' : 'dark';
     get().setSettings({ theme: next });
   },
-  /** Privacy: wipe every local preference (settings, plan, notify flag). */
+  /** Privacy: wipe local preferences. The account plan stays server-side. */
   clearLocalPreferences: () => {
     clearSettings();
     try {
-      localStorage.removeItem(PLAN_KEY);
       localStorage.removeItem(PLAN_USAGE_KEY);
       localStorage.removeItem(PENDING_PLAN_KEY);
       localStorage.removeItem('tdl.notify');
@@ -832,7 +897,9 @@ export const useStore = create((set, get) => ({
     applyTheme(settings.theme);
     set({
       settings,
-      plan: 'free',
+      plan: normalizePlan(get().user?.plan ?? get().plan),
+      planBusy: false,
+      planError: null,
       planUsage: readPlanUsage(),
       pendingPlan: null,
       notifyEnabled: true,
@@ -843,6 +910,11 @@ export const useStore = create((set, get) => ({
 
   // ---- Notifications ----
   setNotifyEnabled: (enabled) => {
+    // Reminders are Premium-only. Disabling is always allowed.
+    if (enabled && !isPremiumPlan(get().plan)) {
+      set({ notifyEnabled: false });
+      return;
+    }
     storePreference('tdl.notify', enabled ? 'on' : 'off');
     set({
       notifyEnabled: enabled,
@@ -870,6 +942,7 @@ export const useStore = create((set, get) => ({
     }
   },
   requestNotifications: async () => {
+    if (!isPremiumPlan(get().plan)) return 'premium';
     if (typeof window === 'undefined' || !('Notification' in window)) {
       set({ notificationPermission: 'unsupported' });
       return 'unsupported';
@@ -888,6 +961,7 @@ export const useStore = create((set, get) => ({
     }
   },
   sendTestNotification: () => {
+    if (!isPremiumPlan(get().plan)) return false;
     if (
       typeof window === 'undefined' ||
       !('Notification' in window) ||
@@ -962,6 +1036,10 @@ export const useStore = create((set, get) => ({
   },
 
   loadReminderEvents: async () => {
+    if (!isPremiumPlan(get().plan)) {
+      set({ reminderEvents: [] });
+      return [];
+    }
     try {
       const { events } = await api.getReminderEvents();
       set({ reminderEvents: events });
@@ -973,6 +1051,7 @@ export const useStore = create((set, get) => ({
 
   /** Opt this browser into server-sent push (works with the app closed). */
   enablePush: async () => {
+    if (!isPremiumPlan(get().plan)) return null;
     try {
       if (typeof window === 'undefined' || !('Notification' in window)) return null;
       if (window.Notification.permission === 'default') {

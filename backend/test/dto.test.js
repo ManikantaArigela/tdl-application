@@ -102,6 +102,7 @@ test('user documents expose the profile plus account basics', () => {
     name: '',
     bio: '',
     avatar: '',
+    plan: 'free',
     reminders: DEFAULT_REMINDERS,
     createdAt: null,
   });
@@ -120,6 +121,7 @@ test('user documents expose the profile plus account basics', () => {
     name: 'Ada',
     bio: 'Builder',
     avatar: 'sunrise',
+    plan: 'free',
     reminders: DEFAULT_REMINDERS,
     createdAt: MS,
   });

@@ -13,6 +13,7 @@ const {
   addMinutes,
 } = require('../lib/time');
 const { sanitizeReminderSettings, isValidSipUri } = require('../lib/sanitize');
+const { isPremiumPlan } = require('../lib/plans');
 const { toReminderSettingsDTO, toReminderEventDTO, toUserDTO } = require('../lib/dto');
 const voice = require('../lib/voice');
 const push = require('./push');
@@ -115,6 +116,11 @@ function verificationScript(code) {
 
 /** Creates the push and call moments for one todo. Duplicate rows are ignored. */
 async function enqueueForTodo({ user, todo, now = Date.now() }) {
+  // Reminders are a Premium entitlement. The scheduler may still see legacy
+  // accounts that enabled reminders before the plan existed, so skip them here
+  // as well as at the HTTP layer.
+  if (!isPremiumPlan(user?.plan)) return 0;
+
   const settings = settingsOf(user);
   const timezone = timezoneOf(user);
   const due = dueInstant({
@@ -314,6 +320,14 @@ async function processEvent(event, now = Date.now()) {
     return;
   }
 
+  if (!isPremiumPlan(user.plan)) {
+    await events.update(event._id, {
+      status: 'skipped',
+      error: 'Reminders require the Premium plan',
+    });
+    return;
+  }
+
   // The row may have been cancelled by a task edit after it was claimed.
   const claimed = await events.findById(event._id);
   if (!claimed || claimed.status !== 'processing') return;
@@ -488,6 +502,18 @@ async function updateSettings(user, input = {}, repo = users) {
   const base = user.reminders || {};
   const next = sanitizeReminderSettings(input, base);
 
+  // Reminders are Premium-only. Non-Premium accounts may still turn them off
+  // (for example after a downgrade), but they cannot enable or re-arm them.
+  if (!isPremiumPlan(user.plan)) {
+    if (input.enabled === true) {
+      throw httpError(
+        'Reminders are a Premium feature. Upgrade to Premium to enable them.',
+        403
+      );
+    }
+    next.enabled = false;
+  }
+
   // Withdrawing consent also turns calling off. Explicitly asking to enable
   // and withdraw consent in the same request is contradictory.
   if (input.consent === false) {
@@ -521,6 +547,9 @@ async function updateSettings(user, input = {}, repo = users) {
 }
 
 async function startVerification(user, repo = users) {
+  if (!isPremiumPlan(user.plan)) {
+    throw httpError('Reminders are a Premium feature. Upgrade to Premium to verify a phone.', 403);
+  }
   const settings = settingsOf(user);
   if (!settings.consentAt) {
     throw httpError('Tick the consent box before requesting a verification call.', 400);
@@ -566,6 +595,9 @@ async function startVerification(user, repo = users) {
 }
 
 async function confirmVerification(user, code, repo = users) {
+  if (!isPremiumPlan(user.plan)) {
+    throw httpError('Reminders are a Premium feature. Upgrade to Premium to verify a phone.', 403);
+  }
   const verify = user.sipVerify || {};
   const settings = settingsOf(user);
   const entered = String(code || '').trim();
@@ -607,6 +639,9 @@ async function confirmVerification(user, code, repo = users) {
 }
 
 async function sendTestCall(user) {
+  if (!isPremiumPlan(user.plan)) {
+    throw httpError('Reminders are a Premium feature. Upgrade to Premium to test a call.', 403);
+  }
   const settings = settingsOf(user);
   if (!settings.consentAt) {
     throw httpError('Tick the consent box before placing a test call.', 400);

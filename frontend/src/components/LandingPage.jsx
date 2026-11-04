@@ -729,14 +729,14 @@ export default function LandingPage({ onSignIn, onSignUp, onChoosePlan }) {
                       Reminders that reach you.
                     </p>
                     <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">
-                      In-app toasts on every device, plus browser alerts when you allow them.
-                      Notifications are included on every plan.
+                      A Premium perk: in-app alerts, browser notifications, and a free voice
+                      call when a task is due. Free and Pro keep unlimited notes and tasks.
                     </p>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                   <span className="chip bg-lavender text-accent">Web + mobile</span>
-                  <span className="chip light-island bg-pop-yellow text-ink">Every plan</span>
+                  <span className="chip light-island bg-pop-yellow text-ink">Premium</span>
                 </div>
               </motion.div>
             </div>
@@ -759,8 +759,8 @@ export default function LandingPage({ onSignIn, onSignUp, onChoosePlan }) {
                   Pick a pace that fits.
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">
-                  Start free. Add more AI and PDF imports when you need them. Every plan includes
-                  notes, tasks, and reminders.
+                  Start free. Add more AI and PDF imports when you need them. Smart reminders
+                  and voice calls come with Premium.
                 </p>
               </motion.div>
 
@@ -785,7 +785,7 @@ export default function LandingPage({ onSignIn, onSignUp, onChoosePlan }) {
               >
                 <span className="inline-flex items-center gap-1.5">
                   <BellRing className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                  Notifications included on every plan
+                  Smart reminders included with Premium
                 </span>
                 <span className="hidden h-3 w-px bg-line sm:block" aria-hidden="true" />
                 <span>Prices in INR · Switch or cancel anytime</span>

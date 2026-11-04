@@ -150,6 +150,19 @@ function createReminderEventsRepo() {
       { $set: { status: 'skipped', updatedAt: new Date() } }
     );
 
+  /** Downgrading out of Premium must not leave queued calls or pushes behind. */
+  const cancelForUser = async (userId) =>
+    ReminderEvent.updateMany(
+      { userId, status: { $in: ['queued', 'processing'] } },
+      {
+        $set: {
+          status: 'skipped',
+          error: 'Reminders require the Premium plan',
+          updatedAt: new Date(),
+        },
+      }
+    );
+
   /**
    * Re-opening a task must be able to re-arm its reminders. `cancelForTodo`
    * leaves rows behind so the unique index still blocks new ones, so future
@@ -202,6 +215,7 @@ function createReminderEventsRepo() {
     cancelStale,
     cancelStage,
     cancelForTodo,
+    cancelForUser,
     reopenForTodo,
     countCallsSince,
     latestForTodo,

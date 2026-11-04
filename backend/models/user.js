@@ -50,6 +50,13 @@ const userSchema = new mongoose.Schema(
     name: { type: String, default: '', maxlength: 80 },
     bio: { type: String, default: '', maxlength: 280 },
     avatar: { type: String, default: '', maxlength: 64 },
+    // Billing tier. Reminders are Premium-only, so this must live on the
+    // account rather than in localStorage.
+    plan: {
+      type: String,
+      enum: ['free', 'pro', 'premium'],
+      default: 'free',
+    },
     // Account-level voice reminder preferences.
     reminders: { type: reminderSettingsSchema, default: () => ({}) },
     // Server-managed SIP ownership challenge. Never serialized.

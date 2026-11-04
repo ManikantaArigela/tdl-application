@@ -26,7 +26,7 @@ import Toggle from '../components/Toggle';
 import { Dropdown } from '../components/FormControls';
 import { DENSITIES, THEMES } from '../lib/settings';
 import { getAvatar } from '../lib/avatars';
-import { getPlan } from '../lib/plans';
+import { getPlan, isPremiumPlan } from '../lib/plans';
 
 const NAME_LIMIT = 80;
 const BIO_LIMIT = 280;
@@ -37,6 +37,29 @@ const PERMISSION_COPY = {
   denied: 'Alerts are blocked in your browser settings; in-app reminders still work.',
   unsupported: 'This browser does not support system notifications.',
 };
+
+function PremiumLock({ title, description, onUpgrade }) {
+  return (
+    <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-lavender text-accent">
+          <Crown className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-sm font-medium text-ink">{title}</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted">{description}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="btn-primary shrink-0 px-3.5 py-2 text-xs"
+        onClick={onUpgrade}
+      >
+        Upgrade to Premium
+      </button>
+    </div>
+  );
+}
 
 function Section({ icon: Icon, title, description, children }) {
   return (
@@ -93,6 +116,7 @@ export default function ProfileView() {
   const setAIPlannerOpen = useStore((s) => s.setAIPlannerOpen);
   const plan = useStore((s) => s.plan);
   const planName = getPlan(plan).name;
+  const remindersAllowed = isPremiumPlan(plan);
 
   const workspaceLinks = [
     { key: 'archive', label: 'Archive', icon: Archive, onSelect: () => setActiveView('archive') },
@@ -569,36 +593,55 @@ export default function ProfileView() {
       <Section
         icon={BellRing}
         title="Notifications"
-        description={PERMISSION_COPY[notificationPermission] ?? PERMISSION_COPY.default}
+        description={
+          remindersAllowed
+            ? PERMISSION_COPY[notificationPermission] ?? PERMISSION_COPY.default
+            : 'In-app alerts, browser notifications, and voice calls are included with Premium.'
+        }
       >
-        <Toggle
-          label="Task reminders"
-          description="In-app alerts, plus browser notifications when allowed."
-          checked={notifyEnabled}
-          disabled={notificationPermission === 'unsupported'}
-          onChange={setNotifyEnabled}
-        />
-        <div className="flex flex-wrap items-center gap-2 py-3">
-          {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-            <button type="button" className="btn-primary px-3.5 py-2 text-xs" onClick={requestNotifications}>
-              Allow browser alerts
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn-ghost px-3.5 py-2 text-xs"
-            onClick={sendTest}
-            disabled={notificationPermission !== 'granted' || !notifyEnabled}
-          >
-            {testSent ? (
-              <span className="flex items-center gap-1.5 text-success">
-                <Check className="h-3.5 w-3.5" aria-hidden="true" /> Sent
-              </span>
-            ) : (
-              'Send a test alert'
-            )}
-          </button>
-        </div>
+        {remindersAllowed ? (
+          <>
+            <Toggle
+              label="Task reminders"
+              description="In-app alerts, plus browser notifications when allowed."
+              checked={notifyEnabled}
+              disabled={notificationPermission === 'unsupported'}
+              onChange={setNotifyEnabled}
+            />
+            <div className="flex flex-wrap items-center gap-2 py-3">
+              {notificationPermission !== 'granted' &&
+                notificationPermission !== 'unsupported' && (
+                  <button
+                    type="button"
+                    className="btn-primary px-3.5 py-2 text-xs"
+                    onClick={requestNotifications}
+                  >
+                    Allow browser alerts
+                  </button>
+                )}
+              <button
+                type="button"
+                className="btn-ghost px-3.5 py-2 text-xs"
+                onClick={sendTest}
+                disabled={notificationPermission !== 'granted' || !notifyEnabled}
+              >
+                {testSent ? (
+                  <span className="flex items-center gap-1.5 text-success">
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" /> Sent
+                  </span>
+                ) : (
+                  'Send a test alert'
+                )}
+              </button>
+            </div>
+          </>
+        ) : (
+          <PremiumLock
+            title="Task reminders are Premium"
+            description="Upgrade to get in-app alerts and browser notifications when tasks are due."
+            onUpgrade={() => setPlanDialogOpen(true)}
+          />
+        )}
       </Section>
 
       {/* ---- Voice call reminders --------------------------------------------- */}
@@ -606,12 +649,16 @@ export default function ProfileView() {
         icon={PhoneCall}
         title="Voice call reminders"
         description={
-          inApp
+          !remindersAllowed
+            ? 'Voice call reminders are included with Premium.'
+            : inApp
             ? 'A free in-app call when a task is due. No SIP account, phone bill, or Twilio account.'
             : 'A free SIP call when a task is due. No phone bill and no Twilio account.'
         }
       >
-        {inApp && (
+        {remindersAllowed ? (
+          <>
+            {inApp && (
           <p className="py-3 text-xs leading-relaxed text-muted">
             The server sends a high-priority notification, then Nova Notes speaks the reminder with
             your device&apos;s free text-to-speech. Enable background notifications below so the app
@@ -829,6 +876,14 @@ export default function ProfileView() {
             </span>
           )}
         </div>
+          </>
+        ) : (
+          <PremiumLock
+            title="Voice calls are Premium"
+            description="Upgrade to get a free in-app call or SIP call when a task is due."
+            onUpgrade={() => setPlanDialogOpen(true)}
+          />
+        )}
       </Section>
 
       {/* ---- Privacy & account ------------------------------------------------- */}
@@ -850,7 +905,7 @@ export default function ProfileView() {
           </button>
           {confirmingWipe ? (
             <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
-              Reset theme, density, motion, defaults, and plan on this device?
+              Reset theme, density, motion, and defaults on this device?
               <button
                 type="button"
                 className="rounded-lg bg-danger px-3 py-1.5 font-semibold text-white"

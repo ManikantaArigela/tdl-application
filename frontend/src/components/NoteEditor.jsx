@@ -149,7 +149,7 @@ export default function NoteEditor({ note }) {
 
     if (!draft) {
       setAiStatus('error');
-      setAiError('Write a few lines first, then Gemini can improve or summarize them.');
+      setAiError('Write a few lines first, then Nova AI can improve or summarize them.');
       return;
     }
 
@@ -173,10 +173,10 @@ export default function NoteEditor({ note }) {
       setAiStatus('done');
       recordAIUse('notes');
     } catch (err) {
-      const message = err.message || 'Gemini could not process this note.';
+      const message = err.message || 'Nova AI could not process this note.';
       setAiError(
         /not configured/i.test(message)
-          ? 'Gemini is not configured. Add GEMINI_API_KEY to backend/.env and restart the server.'
+          ? 'AI is not configured. Add a free key (GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY) to backend/.env and restart the server.'
           : message
       );
       setAiStatus('error');
@@ -314,7 +314,7 @@ export default function NoteEditor({ note }) {
           onClick={() => runAI('summarize')}
           disabled={aiStatus === 'loading'}
           className="btn-ghost px-2.5 py-1.5 text-xs"
-          title="Summarize this note with Gemini"
+          title="Summarize this note with Nova AI"
         >
           {aiStatus === 'loading' && aiMode === 'summarize' ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />

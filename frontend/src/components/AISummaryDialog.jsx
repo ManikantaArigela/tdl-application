@@ -75,7 +75,7 @@ export default function AISummaryDialog() {
       const message = err.message || 'Could not summarize your notes.';
       setError(
         /not configured/i.test(message)
-          ? 'Gemini is not configured. Add GEMINI_API_KEY to backend/.env and restart the server.'
+          ? 'AI is not configured. Add a free key (GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY) to backend/.env and restart the server.'
           : message
       );
       setStatus('error');
@@ -143,7 +143,8 @@ export default function AISummaryDialog() {
                 Study brief
               </h2>
               <p className="text-xs text-muted">
-                {source.length} {plural(source.length, 'note')} summarized by Gemini · {planInfo.name}{' '}
+                {source.length} {plural(source.length, 'note')} summarized by Nova AI ·{' '}
+                {planInfo.name}{' '}
                 plan
               </p>
               <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-faint">

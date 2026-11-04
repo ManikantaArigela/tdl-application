@@ -93,6 +93,7 @@ const toUserDTO = (doc = {}) => ({
   name: typeof doc.name === 'string' ? doc.name : '',
   bio: typeof doc.bio === 'string' ? doc.bio : '',
   avatar: typeof doc.avatar === 'string' ? doc.avatar : '',
+  plan: ['free', 'pro', 'premium'].includes(doc.plan) ? doc.plan : 'free',
   reminders: toReminderSettingsDTO(pick(doc, 'reminders') ?? {}),
   createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
 });

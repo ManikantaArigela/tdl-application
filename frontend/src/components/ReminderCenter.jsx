@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BellRing, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { isPremiumPlan } from '../lib/plans';
 import { dueTimestamp, formatDate, formatDueTime } from '../lib/format';
 import { showSystemNotification } from '../lib/notifications';
 
@@ -43,14 +44,16 @@ export default function ReminderCenter() {
   const notifyEnabled = useStore((s) => s.notifyEnabled);
   const notificationPermission = useStore((s) => s.notificationPermission);
   const setActiveView = useStore((s) => s.setActiveView);
+  const plan = useStore((s) => s.plan);
+  const remindersAllowed = isPremiumPlan(plan);
 
   const [reminders, setReminders] = React.useState([]);
 
   // Refs keep the interval stable while reading the latest store values.
   const todosRef = React.useRef(todos);
   todosRef.current = todos;
-  const enabledRef = React.useRef(notifyEnabled);
-  enabledRef.current = notifyEnabled;
+  const enabledRef = React.useRef(remindersAllowed && notifyEnabled);
+  enabledRef.current = remindersAllowed && notifyEnabled;
   const permissionRef = React.useRef(notificationPermission);
   permissionRef.current = notificationPermission;
 
@@ -123,6 +126,13 @@ export default function ReminderCenter() {
       document.removeEventListener('visibilitychange', check);
     };
   }, [dismiss]);
+
+  // A downgrade should remove any toasts that were already on screen.
+  React.useEffect(() => {
+    if (!remindersAllowed) setReminders([]);
+  }, [remindersAllowed]);
+
+  if (!remindersAllowed) return null;
 
   const openTasks = () => {
     setReminders([]);

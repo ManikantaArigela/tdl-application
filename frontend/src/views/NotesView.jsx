@@ -108,7 +108,7 @@ export default function NotesView({ starred = false, archive = false } = {}) {
               type="button"
               onClick={() => setAISummaryOpen(true)}
               className="btn-ghost"
-              title="Summarize all notes with Gemini"
+              title="Summarize all notes with Nova AI"
             >
               <ScrollText className="h-4 w-4" aria-hidden="true" /> Summarize
             </button>

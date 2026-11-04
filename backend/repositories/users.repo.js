@@ -30,6 +30,15 @@ const users = {
     return doc;
   },
 
+  /** Demo billing: the chosen plan is stored on the account immediately. */
+  async updatePlan(id, plan) {
+    return User.findByIdAndUpdate(
+      id,
+      { $set: { plan } },
+      { new: true, runValidators: true, lean: true }
+    );
+  },
+
   /** Replaces the account's reminder settings (already sanitized). */
   async updateReminders(id, reminders) {
     return User.findByIdAndUpdate(

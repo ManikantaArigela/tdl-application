@@ -63,8 +63,9 @@ export const api = {
   emptyTodoTrash: () => request('/todos/trash', { method: 'DELETE' }),
   reorderTodos: (todos) => request('/todos/reorder', { method: 'PUT', body: JSON.stringify({ todos }) }),
 
-  // Profile
+  // Profile and account plan (demo billing)
   updateProfile: (profile) => request('/profile', { method: 'PUT', body: JSON.stringify(profile) }),
+  updatePlan: (plan) => request('/auth/plan', { method: 'PUT', body: JSON.stringify({ plan }) }),
 
   // Reminders: voice calls + background push
   getReminderSettings: () => request('/reminders/settings'),
@@ -92,7 +93,7 @@ export const api = {
   unsubscribePush: (endpoint) =>
     request('/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
 
-  // AI (Gemini runs server-side; the key never reaches the browser)
+  // AI (Gemini / Groq / OpenRouter run server-side; keys never reach the browser)
   getAIStatus: () => request('/ai/status'),
   generatePlan: (payload) => request('/ai/plan', { method: 'POST', body: JSON.stringify(payload) }),
   enhanceNote: (payload) =>
