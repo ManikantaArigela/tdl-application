@@ -154,7 +154,7 @@ async function enqueueForTodo({ user, todo, now = Date.now() }) {
     settings.consentAt &&
     (voice.requiresSip()
       ? Boolean(settings.sipUri && settings.sipVerified)
-      : Boolean(settings.pushEnabled));
+      : Boolean(settings.pushEnabled && push.isConfigured()));
 
   if (voiceReady) {
     if (due >= now - CALL_GRACE_MS) {
@@ -350,7 +350,7 @@ async function processEvent(event, now = Date.now()) {
     settings.consentAt &&
     (voice.requiresSip()
       ? Boolean(settings.sipUri && settings.sipVerified)
-      : Boolean(settings.pushEnabled));
+      : Boolean(settings.pushEnabled && push.isConfigured()));
 
   if (!voiceReady) {
     await events.update(event._id, {
