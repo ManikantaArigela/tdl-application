@@ -1,7 +1,11 @@
 import { create } from 'zustand';
 import { api } from '../api';
 import { advanceDueDate, dayKey } from '../lib/format';
-import { showSystemNotification } from '../lib/notifications';
+import {
+  showSystemNotification,
+  subscribeToPush,
+  currentPushSubscription,
+} from '../lib/notifications';
 import { auth } from '../lib/auth';
 import { normalizePlan } from '../lib/plans';
 import { loadSettings, saveSettings, clearSettings, applyTheme } from '../lib/settings';
@@ -83,6 +87,22 @@ let authListenerAttached = false;
 
 const emptyProfile = { name: '', bio: '', avatar: '' };
 
+const browserTimezone =
+  typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC';
+
+const emptyReminderSettings = {
+  enabled: false,
+  pushEnabled: true,
+  sipUri: '',
+  voiceLanguage: 'en',
+  timezone: browserTimezone,
+  quietStart: '21:00',
+  quietEnd: '08:00',
+  maxRetries: 2,
+  consentAt: null,
+  sipVerified: false,
+};
+
 const emptyWorkspace = {
   notes: [],
   todos: [],
@@ -107,6 +127,12 @@ const emptyWorkspace = {
   exportOpen: false,
   planDialogOpen: false,
   profile: emptyProfile,
+  reminderSettings: emptyReminderSettings,
+  reminderEvents: [],
+  voiceStatus: null,
+  reminderBusy: false,
+  reminderError: null,
+  pushSubscribed: false,
 };
 
 function authMessage(error) {
@@ -197,6 +223,12 @@ export const useStore = create((set, get) => ({
   settings: loadSettings(),
   notifyEnabled: initialNotifyEnabled,
   notificationPermission: initialPermission,
+  reminderSettings: emptyReminderSettings,
+  reminderEvents: [],
+  voiceStatus: null,
+  reminderBusy: false,
+  reminderError: null,
+  pushSubscribed: false,
 
   // ---- Auth ----
   initAuth: async () => {
@@ -305,6 +337,13 @@ export const useStore = create((set, get) => ({
   signOut: async () => {
     set({ authBusy: true });
     try {
+      // Stop this browser receiving the departing account's pushes.
+      const subscription = await currentPushSubscription().catch(() => null);
+      if (subscription) await api.unsubscribePush(subscription.endpoint).catch(() => {});
+    } catch {
+      /* best-effort */
+    }
+    try {
       await auth.signOut();
     } catch {
       /* clear locally even if the network call fails */
@@ -332,11 +371,13 @@ export const useStore = create((set, get) => ({
     const userId = get().user?.id;
     set({ initializing: true });
     try {
-      const [notes, todos, trashedNotes, trashedTodos] = await Promise.all([
+      const [notes, todos, trashedNotes, trashedTodos, reminder] = await Promise.all([
         api.getNotes(),
         api.getTodos(),
         api.getTrashedNotes(),
         api.getTrashedTodos(),
+        // Older backends may not expose reminders yet; never block the app.
+        api.getReminderSettings().catch(() => null),
       ]);
       // A sign-out or account switch may have happened while the request was in flight.
       if (get().user?.id !== userId) {
@@ -351,7 +392,16 @@ export const useStore = create((set, get) => ({
         loaded: true,
         initializing: false,
         syncError: null,
+        ...(reminder?.settings
+          ? { reminderSettings: reminder.settings, voiceStatus: reminder.voice ?? null }
+          : {}),
       });
+
+      // Respect the in-app toggle: browser permission alone is not consent to
+      // re-enable push after the user turned reminders off.
+      if (get().notifyEnabled && get().notificationPermission === 'granted') {
+        get().enablePush();
+      }
     } catch (err) {
       if (get().user?.id !== userId) {
         set({ initializing: false });
@@ -794,7 +844,30 @@ export const useStore = create((set, get) => ({
   // ---- Notifications ----
   setNotifyEnabled: (enabled) => {
     storePreference('tdl.notify', enabled ? 'on' : 'off');
-    set({ notifyEnabled: enabled });
+    set({
+      notifyEnabled: enabled,
+      ...(enabled
+        ? {}
+        : {
+            pushSubscribed: false,
+            reminderSettings: { ...get().reminderSettings, pushEnabled: false },
+          }),
+    });
+    if (!get().user) return;
+    // Keep server-side push in step with the local toggle. Enabling also
+    // re-registers this browser, so the switch works without a page reload.
+    if (enabled) {
+      get().enablePush();
+    } else {
+      api.updateReminderSettings({ pushEnabled: false }).catch(() => {});
+      // Also remove the server-side subscription so a stale settings update
+      // cannot keep delivering pushes after the switch is off.
+      currentPushSubscription()
+        .then((subscription) => {
+          if (subscription) api.unsubscribePush(subscription.endpoint).catch(() => {});
+        })
+        .catch(() => {});
+    }
   },
   requestNotifications: async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -807,6 +880,7 @@ export const useStore = create((set, get) => ({
       if (result === 'granted') {
         storePreference('tdl.notify', 'on');
         set({ notifyEnabled: true });
+        get().enablePush();
       }
       return result;
     } catch {
@@ -826,6 +900,115 @@ export const useStore = create((set, get) => ({
       tag: 'tdl-test',
     });
     return true;
+  },
+
+  // ---- Voice reminders (account-level) ----
+  saveReminderSettings: async (patch) => {
+    set({ reminderBusy: true, reminderError: null });
+    try {
+      const { settings, voice } = await api.updateReminderSettings(patch);
+      set({
+        reminderSettings: { ...get().reminderSettings, ...settings },
+        voiceStatus: voice ?? get().voiceStatus,
+        reminderBusy: false,
+        reminderError: null,
+      });
+      return { error: null, settings };
+    } catch (error) {
+      set({ reminderBusy: false, reminderError: error.message });
+      return { error };
+    }
+  },
+
+  startSipVerification: async () => {
+    set({ reminderBusy: true, reminderError: null });
+    try {
+      const result = await api.startSipVerification();
+      set({ reminderBusy: false });
+      return { error: null, ...result };
+    } catch (error) {
+      set({ reminderBusy: false, reminderError: error.message });
+      return { error };
+    }
+  },
+
+  confirmSipVerification: async (code) => {
+    set({ reminderBusy: true, reminderError: null });
+    try {
+      const { user, settings } = await api.confirmSipVerification(code);
+      set({
+        user,
+        profile: profileOf(user),
+        reminderSettings: { ...get().reminderSettings, ...settings },
+        reminderBusy: false,
+      });
+      return { error: null };
+    } catch (error) {
+      set({ reminderBusy: false, reminderError: error.message });
+      return { error };
+    }
+  },
+
+  sendTestCall: async () => {
+    set({ reminderBusy: true, reminderError: null });
+    try {
+      const result = await api.sendTestCall();
+      set({ reminderBusy: false });
+      return { error: null, ...result };
+    } catch (error) {
+      set({ reminderBusy: false, reminderError: error.message });
+      return { error };
+    }
+  },
+
+  loadReminderEvents: async () => {
+    try {
+      const { events } = await api.getReminderEvents();
+      set({ reminderEvents: events });
+      return events;
+    } catch {
+      return [];
+    }
+  },
+
+  /** Opt this browser into server-sent push (works with the app closed). */
+  enablePush: async () => {
+    try {
+      if (typeof window === 'undefined' || !('Notification' in window)) return null;
+      if (window.Notification.permission === 'default') {
+        const permission = await window.Notification.requestPermission();
+        set({ notificationPermission: permission });
+        if (permission !== 'granted') return null;
+      }
+      if (window.Notification.permission !== 'granted') return null;
+
+      const { publicKey } = await api.getPushKey();
+      const subscription = await subscribeToPush(publicKey);
+      if (!subscription) return null;
+
+      await api.subscribePush({
+        subscription: subscription.toJSON(),
+        timezone:
+          typeof Intl !== 'undefined'
+            ? Intl.DateTimeFormat().resolvedOptions().timeZone
+            : undefined,
+      });
+      await api.updateReminderSettings({ pushEnabled: true, timezone: browserTimezone }).catch(() => {});
+      set({ pushSubscribed: true, reminderSettings: { ...get().reminderSettings, pushEnabled: true } });
+      return subscription;
+    } catch {
+      return null;
+    }
+  },
+
+  syncPushSubscription: async () => {
+    try {
+      const subscription = await currentPushSubscription();
+      set({ pushSubscribed: Boolean(subscription) });
+      return subscription;
+    } catch {
+      return null;
+    }
   },
 
   // ---- Derived ----

@@ -1,0 +1,13 @@
+; ARI originates calls directly, so this dialplan is only for manual testing.
+[general]
+static=yes
+writeprotect=yes
+
+[nova-out]
+exten => _X.,1,NoOp(Nova test call to ${EXTEN})
+ same => n,Dial(PJSIP/${EXTEN}@linphone,30)
+ same => n,Hangup()
+
+[from-linphone]
+exten => _X.,1,NoOp(Inbound call from ${CALLERID(num)} — ignored)
+ same => n,Hangup()

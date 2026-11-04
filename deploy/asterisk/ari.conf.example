@@ -1,0 +1,12 @@
+; Asterisk REST Interface for Nova.
+; Keep this port bound to 127.0.0.1 (see http.conf); never expose 8088 publicly.
+
+[general]
+enabled=yes
+pretty=yes
+allowed_origins=*
+
+[nova]
+type=user
+read_only=no
+password=CHANGE_ME_ARI_PASSWORD

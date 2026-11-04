@@ -58,13 +58,50 @@ const toTodoDTO = (doc = {}) => {
   };
 };
 
+const toReminderSettingsDTO = (doc = {}) => ({
+  enabled: Boolean(doc.enabled),
+  pushEnabled: doc.pushEnabled !== false,
+  sipUri: typeof doc.sipUri === 'string' ? doc.sipUri : '',
+  voiceLanguage: typeof doc.voiceLanguage === 'string' ? doc.voiceLanguage : 'en',
+  timezone: typeof doc.timezone === 'string' && doc.timezone ? doc.timezone : 'UTC',
+  quietStart: typeof doc.quietStart === 'string' ? doc.quietStart : '21:00',
+  quietEnd: typeof doc.quietEnd === 'string' ? doc.quietEnd : '08:00',
+  maxRetries: typeof doc.maxRetries === 'number' ? doc.maxRetries : 2,
+  consentAt: toMs(doc.consentAt),
+  sipVerified: Boolean(doc.sipVerifiedAt),
+  sipVerifiedAt: toMs(doc.sipVerifiedAt),
+});
+
+const toReminderEventDTO = (doc = {}) => ({
+  id: String(doc._id ?? doc.id ?? ''),
+  todoId: String(doc.todoId ?? ''),
+  stage: typeof doc.stage === 'string' ? doc.stage : '',
+  channel: doc.channel === 'call' ? 'call' : 'push',
+  status: typeof doc.status === 'string' ? doc.status : 'queued',
+  attempt: Number(doc.attempt) || 0,
+  scheduledFor: toMs(doc.scheduledFor),
+  startedAt: toMs(doc.startedAt),
+  endedAt: toMs(doc.endedAt),
+  provider: typeof doc.provider === 'string' ? doc.provider : '',
+  error: typeof doc.error === 'string' ? doc.error : '',
+  createdAt: toMs(doc.createdAt),
+});
+
 const toUserDTO = (doc = {}) => ({
   id: String(pick(doc, '_id', 'id') ?? ''),
   email: typeof doc.email === 'string' ? doc.email : '',
   name: typeof doc.name === 'string' ? doc.name : '',
   bio: typeof doc.bio === 'string' ? doc.bio : '',
   avatar: typeof doc.avatar === 'string' ? doc.avatar : '',
+  reminders: toReminderSettingsDTO(pick(doc, 'reminders') ?? {}),
   createdAt: toMs(pick(doc, 'createdAt', 'created_at')),
 });
 
-module.exports = { toMs, toNoteDTO, toTodoDTO, toUserDTO };
+module.exports = {
+  toMs,
+  toNoteDTO,
+  toTodoDTO,
+  toReminderSettingsDTO,
+  toReminderEventDTO,
+  toUserDTO,
+};

@@ -175,7 +175,7 @@ The AI endpoints are protected too, so visitors cannot spend your Gemini quota w
 | **Notes** | Create, edit, pin, archive, trash (with Undo), tag, search (title/content/tags), click-to-filter tag chips, Markdown write/split/preview editor, one-click “Turn into task”, debounced autosave with save status, AI improve + summarize per note |
 | **Todos** | Card-based task board with due dates **and times**, priority sorting (or manual order / due-date order), recurring tasks (daily or weekly), drag onto completed/carried-over boxes, inline carry action, clear completed, trash with Undo |
 | **Trash** | Persistent soft-delete for notes and tasks, per-item restore, permanent delete, and Empty Trash |
-| **Reminders** | In-app toasts plus browser/mobile notifications from 10 minutes before a task's due time, with a per-browser permission control in the header |
+| **Reminders** | In-app toasts and browser notifications, plus optional server Web Push at T-30/T-10 and a free SIP voice call at the due time (1 completes, 2 snoozes, 9 opts out) |
 | **AI (Gemini)** | Planner that turns a topic, pasted text, or PDF into notes + tasks automatically; student-friendly note rewriting; per-note summaries; a "Study brief" that summarizes every note on the Notes tab |
 | **Design** | Editorial paper/ink theme, persisted light/dark toggle (header, settings, command palette), single brand palette, semantic CSS-variable tokens, reduced-motion support |
 | **UI / 3D** | Clean note cards with a subtle hover lift, liquid completion bag, lazy-loaded ambient Three.js starfield, Framer Motion with global reduced-motion policy |
@@ -186,12 +186,15 @@ The AI endpoints are protected too, so visitors cannot spend your Gemini quota w
 
 ### Notifications
 
-Click the bell in the header to allow browser notifications. TDL reminds you from 10 minutes before a task's due time until shortly after it, once per due moment. In-app toasts appear even when browser permission is denied.
+Click the bell in the header to allow browser notifications. In-app toasts appear even when browser permission is denied. With the backend running, the scheduler also sends **server Web Push** at T-30 and T-10, so reminders arrive when the app is closed.
 
-- Notifications are delivered by the page or the installed app. Keep TDL open (or installed) for reminders; there is no push server.
-- Service workers and notifications require `https://` or `localhost`.
+Voice calls are optional and completely free: the backend calls a **Linphone** SIP address at the due time through Asterisk. Setup is documented in [`deploy/asterisk/README.md`](deploy/asterisk/README.md). The default `VOICE_PROVIDER=console` is a dry run that logs prompts and returns the verification code in development.
+
+- Browser push requires `https://` (or `localhost`) and the service worker in `frontend/public/sw.js`.
 - On iPhone, add TDL to the Home Screen first — Safari only exposes notifications to installed web apps.
-- Reminder history is stored per browser in `localStorage`, so refreshing does not re-alert the same due moment.
+- Voice calls require explicit consent, a verified SIP address, and the Linphone app running in the background.
+- Calls respect quiet hours, a per-user daily cap, and pressing `9` turns them off.
+- Client-side reminder history is stored per browser in `localStorage`, so refreshing does not re-alert the same due moment.
 
 ---
 

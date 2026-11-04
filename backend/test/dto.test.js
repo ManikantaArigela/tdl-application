@@ -14,6 +14,20 @@ const { mapError } = require('../lib/errors');
 const ISO = '2026-10-24T12:00:00.000Z';
 const MS = Date.parse(ISO);
 
+const DEFAULT_REMINDERS = {
+  enabled: false,
+  pushEnabled: true,
+  sipUri: '',
+  voiceLanguage: 'en',
+  timezone: 'UTC',
+  quietStart: '21:00',
+  quietEnd: '08:00',
+  maxRetries: 2,
+  consentAt: null,
+  sipVerified: false,
+  sipVerifiedAt: null,
+};
+
 test('toMs accepts ISO strings, Dates, numbers, and empty values', () => {
   assert.equal(toMs(ISO), MS);
   assert.equal(toMs(new Date(MS)), MS);
@@ -88,6 +102,7 @@ test('user documents expose the profile plus account basics', () => {
     name: '',
     bio: '',
     avatar: '',
+    reminders: DEFAULT_REMINDERS,
     createdAt: null,
   });
 
@@ -105,6 +120,7 @@ test('user documents expose the profile plus account basics', () => {
     name: 'Ada',
     bio: 'Builder',
     avatar: 'sunrise',
+    reminders: DEFAULT_REMINDERS,
     createdAt: MS,
   });
   assert.equal(profiled.passwordHash, undefined);

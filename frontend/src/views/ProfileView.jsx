@@ -14,6 +14,7 @@ import {
   Loader2,
   LogOut,
   Moon,
+  PhoneCall,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -73,6 +74,16 @@ export default function ProfileView() {
   const notificationPermission = useStore((s) => s.notificationPermission);
   const requestNotifications = useStore((s) => s.requestNotifications);
   const sendTestNotification = useStore((s) => s.sendTestNotification);
+  const reminderSettings = useStore((s) => s.reminderSettings);
+  const reminderBusy = useStore((s) => s.reminderBusy);
+  const reminderError = useStore((s) => s.reminderError);
+  const voiceStatus = useStore((s) => s.voiceStatus);
+  const pushSubscribed = useStore((s) => s.pushSubscribed);
+  const saveReminderSettings = useStore((s) => s.saveReminderSettings);
+  const startSipVerification = useStore((s) => s.startSipVerification);
+  const confirmSipVerification = useStore((s) => s.confirmSipVerification);
+  const sendTestCall = useStore((s) => s.sendTestCall);
+  const enablePush = useStore((s) => s.enablePush);
   const setExportOpen = useStore((s) => s.setExportOpen);
   const signOut = useStore((s) => s.signOut);
   const authBusy = useStore((s) => s.authBusy);
@@ -113,6 +124,19 @@ export default function ProfileView() {
   const [saved, setSaved] = React.useState(false);
   const [confirmingWipe, setConfirmingWipe] = React.useState(false);
   const [testSent, setTestSent] = React.useState(false);
+  const [sip, setSip] = React.useState(reminderSettings.sipUri || '');
+  const [voiceLanguage, setVoiceLanguage] = React.useState(reminderSettings.voiceLanguage || 'en');
+  const [quietStart, setQuietStart] = React.useState(reminderSettings.quietStart || '21:00');
+  const [quietEnd, setQuietEnd] = React.useState(reminderSettings.quietEnd || '08:00');
+  const [consent, setConsent] = React.useState(Boolean(reminderSettings.consentAt));
+  const [verifyCode, setVerifyCode] = React.useState('');
+  const [devCode, setDevCode] = React.useState('');
+  const [voiceNotice, setVoiceNotice] = React.useState('');
+  const [callState, setCallState] = React.useState('idle');
+  const browserTimezone =
+    typeof Intl !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      : 'UTC';
 
   // Sync the form when the persisted profile changes (sign-in, other tab).
   React.useEffect(() => {
@@ -148,6 +172,104 @@ export default function ProfileView() {
 
   const sendTest = () => {
     if (sendTestNotification()) setTestSent(true);
+  };
+
+  // Keep the voice form in sync with the account (sign-in, other tab).
+  React.useEffect(() => {
+    setSip(reminderSettings.sipUri || '');
+    setVoiceLanguage(reminderSettings.voiceLanguage || 'en');
+    setQuietStart(reminderSettings.quietStart || '21:00');
+    setQuietEnd(reminderSettings.quietEnd || '08:00');
+    setConsent(Boolean(reminderSettings.consentAt));
+  }, [
+    reminderSettings.sipUri,
+    reminderSettings.voiceLanguage,
+    reminderSettings.quietStart,
+    reminderSettings.quietEnd,
+    reminderSettings.consentAt,
+  ]);
+
+  const voicePayload = (extra = {}) => ({
+    sipUri: sip.trim(),
+    voiceLanguage,
+    quietStart,
+    quietEnd,
+    // The UI has no timezone picker; the account should follow this browser's
+    // clock so quiet hours and due times are not interpreted as UTC.
+    timezone: browserTimezone,
+    consent,
+    ...extra,
+  });
+
+  const saveVoice = async (extra = {}) => {
+    setVoiceNotice('');
+    const result = await saveReminderSettings(voicePayload(extra));
+    if (result.error) {
+      setVoiceNotice(result.error.message);
+      return null;
+    }
+    setVoiceNotice('Saved.');
+    return result.settings;
+  };
+
+  const toggleVoice = async (checked) => {
+    if (checked && !consent) {
+      setVoiceNotice('Tick the consent box before enabling calls.');
+      return;
+    }
+    if (checked && !sip.trim()) {
+      setVoiceNotice('Add your free Linphone SIP address first.');
+      return;
+    }
+    await saveVoice({ enabled: checked });
+  };
+
+  const requestSipCode = async () => {
+    setVoiceNotice('');
+    if (!consent) {
+      setVoiceNotice('Tick the consent box before requesting a verification call.');
+      return;
+    }
+    const saved = await saveVoice();
+    if (!saved) return;
+    const result = await startSipVerification();
+    if (result.error) {
+      setVoiceNotice(result.error.message);
+      return;
+    }
+    setDevCode(result.devCode || '');
+    setVoiceNotice(
+      result.devCode
+        ? `Dry-run mode: use code ${result.devCode}. Switch VOICE_PROVIDER=ari on the server for a real call.`
+        : 'Verification call sent. Answer it and enter the 6-digit code.'
+    );
+  };
+
+  const confirmCode = async () => {
+    setVoiceNotice('');
+    const result = await confirmSipVerification(verifyCode.trim());
+    if (result.error) {
+      setVoiceNotice(result.error.message);
+      return;
+    }
+    setVerifyCode('');
+    setDevCode('');
+    setVoiceNotice('SIP address verified. Voice reminders are ready.');
+  };
+
+  const testVoiceCall = async () => {
+    setCallState('calling');
+    setVoiceNotice('');
+    const result = await sendTestCall();
+    setCallState(result.error ? 'idle' : 'sent');
+    setVoiceNotice(
+      result.error
+        ? result.error.message
+        : result.simulated
+          ? 'Test call simulated (dry-run mode).'
+          : 'Test call placed. Answer your Linphone app.'
+    );
+    if (!result.error) setTimeout(() => setCallState('idle'), 3000);
   };
 
   const storedAvatar = getAvatar(profile?.avatar);
@@ -464,6 +586,217 @@ export default function ProfileView() {
               'Send a test alert'
             )}
           </button>
+        </div>
+      </Section>
+
+      {/* ---- Voice call reminders --------------------------------------------- */}
+      <Section
+        icon={PhoneCall}
+        title="Voice call reminders"
+        description="A free SIP call when a task is due. No phone bill and no Twilio account."
+      >
+        <Toggle
+          label="Call me when a task is due"
+          description="Answer and press 1 to complete, 2 to snooze 15 minutes, 9 to stop all calls."
+          checked={reminderSettings.enabled}
+          disabled={reminderBusy}
+          onChange={toggleVoice}
+        />
+
+        <div className="grid gap-3 py-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label htmlFor="voice-sip" className="mb-1.5 block text-xs font-semibold text-muted">
+              Linphone SIP address
+            </label>
+            <input
+              id="voice-sip"
+              type="text"
+              className="input h-9 w-full"
+              placeholder="name@sip.linphone.org"
+              value={sip}
+              onChange={(event) => setSip(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="mt-1 text-[11px] text-faint">
+              Create a free account at{' '}
+              <a
+                className="text-accent hover:underline"
+                href="https://subscribe.linphone.org/register/email"
+                target="_blank"
+                rel="noreferrer"
+              >
+                sip.linphone.org
+              </a>{' '}
+              and install Linphone on your phone. Allow it to run in the background.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="voice-language"
+              className="mb-1.5 block text-xs font-semibold text-muted"
+            >
+              Voice language
+            </label>
+            <Dropdown
+              id="voice-language"
+              title="Voice language"
+              value={voiceLanguage}
+              onChange={setVoiceLanguage}
+              options={[
+                { id: 'en', label: 'English' },
+                { id: 'hi', label: 'हिन्दी (Hindi)' },
+                { id: 'te', label: 'తెలుగు (Telugu)' },
+                { id: 'en-hi', label: 'English + Hindi' },
+              ]}
+            />
+          </div>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-semibold text-muted">Quiet hours</span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="time"
+                className="input h-9 w-full"
+                aria-label="Quiet hours start"
+                value={quietStart}
+                onChange={(event) => setQuietStart(event.target.value)}
+              />
+              <span className="text-xs text-faint">to</span>
+              <input
+                type="time"
+                className="input h-9 w-full"
+                aria-label="Quiet hours end"
+                value={quietEnd}
+                onChange={(event) => setQuietEnd(event.target.value)}
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-faint">Uses {browserTimezone}.</p>
+          </div>
+        </div>
+
+        <label className="flex items-start gap-2 py-3 text-xs leading-relaxed text-muted">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={consent}
+            onChange={(event) => setConsent(event.target.checked)}
+          />
+          <span>
+            I agree to receive automated reminder calls at this SIP address. I can press 9 or turn
+            this off at any time.
+          </span>
+        </label>
+
+        <div className="flex flex-wrap items-center gap-2 py-3">
+          <button
+            type="button"
+            className="btn-primary px-3.5 py-2 text-xs"
+            onClick={() => saveVoice()}
+            disabled={reminderBusy}
+          >
+            {reminderBusy ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Saving
+              </span>
+            ) : (
+              'Save voice settings'
+            )}
+          </button>
+
+          {reminderSettings.sipVerified ? (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-success">
+              <Check className="h-3.5 w-3.5" aria-hidden="true" /> Verified
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn-ghost px-3.5 py-2 text-xs"
+              onClick={requestSipCode}
+              disabled={reminderBusy || !sip.trim()}
+            >
+              Send verification call
+            </button>
+          )}
+
+          {reminderSettings.sipVerified && (
+            <button
+              type="button"
+              className="btn-ghost px-3.5 py-2 text-xs"
+              onClick={testVoiceCall}
+              disabled={reminderBusy || callState === 'calling'}
+            >
+              {callState === 'calling' ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Calling
+                </span>
+              ) : (
+                'Test call'
+              )}
+            </button>
+          )}
+        </div>
+
+        {!reminderSettings.sipVerified && (
+          <div className="flex flex-wrap items-end gap-2 py-3">
+            <div className="min-w-[8rem] flex-1">
+              <label htmlFor="voice-code" className="mb-1.5 block text-xs font-semibold text-muted">
+                6-digit code from the call
+              </label>
+              <input
+                id="voice-code"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                className="input h-9 w-full tracking-[0.3em]"
+                value={verifyCode}
+                onChange={(event) => setVerifyCode(event.target.value.replace(/\D/g, ''))}
+                autoComplete="one-time-code"
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-primary px-3.5 py-2 text-xs"
+              onClick={confirmCode}
+              disabled={reminderBusy || verifyCode.trim().length !== 6}
+            >
+              Confirm code
+            </button>
+          </div>
+        )}
+
+        {(voiceNotice || reminderError) && (
+          <p
+            className={`py-2 text-xs ${
+              reminderError ? 'text-danger' : 'text-muted'
+            }`}
+            role="status"
+          >
+            {reminderError || voiceNotice}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 py-3">
+          {pushSubscribed ? (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-success">
+              <Check className="h-3.5 w-3.5" aria-hidden="true" /> Background push is on
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn-ghost px-3.5 py-2 text-xs"
+              onClick={enablePush}
+            >
+              Enable background notifications
+            </button>
+          )}
+          {voiceStatus && (
+            <span className="text-[11px] text-faint">
+              Calling: {voiceStatus.provider}
+              {voiceStatus.simulated ? ' (dry-run)' : ''}
+            </span>
+          )}
         </div>
       </Section>
 

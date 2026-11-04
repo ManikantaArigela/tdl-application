@@ -1,0 +1,21 @@
+[Unit]
+Description=Nova Notes backend + reminder scheduler
+After=network-online.target mongod.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Change to the account that owns the repository.
+User=ubuntu
+WorkingDirectory=/home/ubuntu/nova-notes/backend
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --env-file=.env server.js
+Restart=always
+RestartSec=5
+# Keep VAPID keys and the TTS cache private.
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

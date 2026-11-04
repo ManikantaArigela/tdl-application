@@ -62,6 +62,10 @@ migration/
 /notes.json
 /todos.json
 
+# ---------- Runtime state ----------
+# VAPID keys and cached TTS audio are generated locally and must not be shared.
+backend/var/
+
 # ---------- Operating system files ----------
 .DS_Store
 ._*

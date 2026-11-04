@@ -66,6 +66,22 @@ export const api = {
   // Profile
   updateProfile: (profile) => request('/profile', { method: 'PUT', body: JSON.stringify(profile) }),
 
+  // Reminders: voice calls + background push
+  getReminderSettings: () => request('/reminders/settings'),
+  updateReminderSettings: (settings) =>
+    request('/reminders/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+  startSipVerification: () => request('/reminders/sip/verify/start', { method: 'POST' }),
+  confirmSipVerification: (code) =>
+    request('/reminders/sip/verify/confirm', { method: 'POST', body: JSON.stringify({ code }) }),
+  sendTestCall: () => request('/reminders/test-call', { method: 'POST' }),
+  getReminderEvents: () => request('/reminders/events'),
+  getVoiceStatus: () => request('/voice/status'),
+  getPushKey: () => request('/push/key'),
+  subscribePush: (payload) =>
+    request('/push/subscribe', { method: 'POST', body: JSON.stringify(payload) }),
+  unsubscribePush: (endpoint) =>
+    request('/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+
   // AI (Gemini runs server-side; the key never reaches the browser)
   getAIStatus: () => request('/ai/status'),
   generatePlan: (payload) => request('/ai/plan', { method: 'POST', body: JSON.stringify(payload) }),

@@ -12,12 +12,16 @@ const {
   signAccessToken,
   MIN_PASSWORD_LENGTH,
 } = require('./lib/auth');
-const { ping: pingDatabase } = require('./db');
+const { ping: pingDatabase, isConnected: isDatabaseConnected } = require('./db');
 const { mapError } = require('./lib/errors');
 const { toUserDTO } = require('./lib/dto');
 const { sanitizeProfile } = require('./lib/sanitize');
 const { createRateLimiter } = require('./lib/rate-limit');
 const { users: defaultUsers } = require('./repositories/users.repo');
+const { createPushRepo } = require('./repositories/push.repo');
+const { createReminderEventsRepo } = require('./repositories/reminder-events.repo');
+const reminders = require('./services/reminders');
+const push = require('./services/push');
 const gemini = require('./lib/gemini');
 const {
   buildPlanPrompt,
@@ -91,6 +95,18 @@ function createApp({
     return next();
   };
 
+  // Calls cost the bot account real SIP traffic, so cap verification and test
+  // calls per account even though the user owns the destination.
+  const voiceLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 4 });
+  const limitVoice = (req, res, next) => {
+    const retryAfter = voiceLimiter(`voice:${req.userId}`);
+    if (retryAfter) {
+      res.set('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Too many call requests. Wait a minute.' });
+    }
+    return next();
+  };
+
   // ---------- Public ----------
   app.get(
     '/api/health',
@@ -122,6 +138,49 @@ function createApp({
         model: gemini.getModel(),
         fallbackModel: gemini.getFallbackModel(),
       });
+    })
+  );
+
+  // Voice/push capability probe. Like /api/ai/status it is public and never
+  // exposes credentials — only whether calling is configured.
+  app.get(
+    '/api/voice/status',
+    wrap(async (req, res) => {
+      res.json(reminders.status());
+    })
+  );
+
+  app.get(
+    '/api/push/key',
+    wrap(async (req, res) => {
+      res.json({ publicKey: push.publicKey(), configured: push.isConfigured() });
+    })
+  );
+
+  /**
+   * External cron entry point. A free host may sleep, so a scheduler can ping
+   * this every few minutes. When CRON_SECRET is unset only localhost may call.
+   */
+  app.post(
+    '/api/internal/tick',
+    wrap(async (req, res) => {
+      const secret = process.env.CRON_SECRET;
+      const provided = req.get('x-cron-secret');
+      const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(
+        req.socket.remoteAddress
+      );
+      // Behind a reverse proxy every request looks local, so production must
+      // set CRON_SECRET. Localhost is only a development convenience.
+      const allowed = secret
+        ? provided === secret
+        : local && process.env.NODE_ENV !== 'production';
+
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const result = await reminders.runOnce();
+      return res.json({ ok: true, ...result });
     })
   );
 
@@ -230,6 +289,97 @@ function createApp({
   app.use('/api/notes', authenticate, withRepos);
   app.use('/api/todos', authenticate, withRepos);
   app.use('/api/ai', authenticate, withRepos);
+
+  // ---------- Reminders (voice + push) ----------
+  app.use('/api/reminders', authenticate);
+  app.use('/api/push', authenticate);
+
+  const currentUser = async (req) => {
+    const user = await users.findById(req.userId);
+    if (!user) {
+      const error = new Error('Your account no longer exists.');
+      error.status = 401;
+      throw error;
+    }
+    return user;
+  };
+
+  app.get(
+    '/api/reminders/settings',
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      return res.json({ settings: toUserDTO(user).reminders, voice: reminders.status() });
+    })
+  );
+
+  app.put(
+    '/api/reminders/settings',
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      const updated = await reminders.updateSettings(user, req.body ?? {}, users);
+      return res.json({ settings: updated.reminders, voice: reminders.status() });
+    })
+  );
+
+  app.post(
+    '/api/reminders/sip/verify/start',
+    limitVoice,
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      return res.json(await reminders.startVerification(user, users));
+    })
+  );
+
+  app.post(
+    '/api/reminders/sip/verify/confirm',
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      const updated = await reminders.confirmVerification(user, req.body?.code, users);
+      return res.json({ user: updated, settings: updated.reminders });
+    })
+  );
+
+  app.post(
+    '/api/reminders/test-call',
+    limitVoice,
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      return res.json(await reminders.sendTestCall(user));
+    })
+  );
+
+  app.get(
+    '/api/reminders/events',
+    wrap(async (req, res) => {
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
+      return res.json({ events: await reminders.listEvents(req.userId, limit) });
+    })
+  );
+
+  app.post(
+    '/api/push/subscribe',
+    wrap(async (req, res) => {
+      const repo = createPushRepo();
+      await repo.save({
+        userId: req.userId,
+        subscription: req.body?.subscription,
+        userAgent: req.get('user-agent'),
+        timezone: req.body?.timezone,
+      });
+      return res.status(201).json({ success: true });
+    })
+  );
+
+  app.delete(
+    '/api/push/subscribe',
+    wrap(async (req, res) => {
+      const repo = createPushRepo();
+      const endpoint = req.body?.endpoint;
+      if (!endpoint) return res.status(400).json({ error: 'An endpoint is required.' });
+      await repo.removeByEndpoint(req.userId, endpoint);
+      return res.json({ success: true });
+    })
+  );
 
   // ---------- Notes ----------
   app.get(
@@ -368,6 +518,21 @@ function createApp({
         return res.status(404).json({ error: 'Todo not found' });
       }
       if (!result.ok) return res.status(400).json({ error: 'Todo text is required' });
+
+      // Completing or rescheduling a task must silence its pending reminders.
+      // Memory-backed tests have no MongoDB, so skip the queue there.
+      if (isDatabaseConnected()) {
+        const queue = createReminderEventsRepo();
+        if (result.todo.completed) {
+          await queue.cancelForTodo(req.userId, result.todo.id).catch(() => {});
+        } else {
+          const dueKey = reminders.dueKeyFor(result.todo);
+          await queue.cancelStale(req.userId, result.todo.id, dueKey).catch(() => {});
+          // Re-opening a completed task should arm its reminders again.
+          await queue.reopenForTodo(req.userId, result.todo.id, dueKey).catch(() => {});
+        }
+      }
+
       return res.json(result.todo);
     })
   );
@@ -377,6 +542,11 @@ function createApp({
     wrap(async (req, res) => {
       const removed = await req.repos.todos.remove(req.params.id);
       if (!removed) return res.status(404).json({ error: 'Todo not found' });
+      if (isDatabaseConnected()) {
+        await createReminderEventsRepo()
+          .cancelForTodo(req.userId, req.params.id)
+          .catch(() => {});
+      }
       return res.json({ success: true });
     })
   );

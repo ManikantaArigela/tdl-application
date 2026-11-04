@@ -1,0 +1,61 @@
+; Nova voice bot — Linphone SIP trunk
+; Replace BOT_USER, BOT_PASSWORD, and PUBLIC_IP before installing.
+;
+; This is an outbound-only trunk. The user's phone is also a Linphone account,
+; so no PSTN number or paid provider is involved.
+;
+; The endpoint must stay named `linphone`: the backend dials
+; `PJSIP/<callee>@linphone` by default.
+
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+; Oracle Cloud gives the VM a private IP; advertise the public one for NAT.
+external_media_address=PUBLIC_IP
+external_signaling_address=PUBLIC_IP
+local_net=10.0.0.0/8
+local_net=172.16.0.0/12
+local_net=192.168.0.0/16
+
+[linphone-auth]
+type=auth
+auth_type=userpass
+username=BOT_USER
+password=BOT_PASSWORD
+
+[linphone]
+type=endpoint
+transport=transport-udp
+context=nova-out
+disallow=all
+allow=ulaw
+allow=alaw
+outbound_auth=linphone-auth
+aors=linphone-aor
+from_user=BOT_USER
+from_domain=sip.linphone.org
+callerid=Nova <BOT_USER>
+direct_media=no
+rtp_symmetric=yes
+rewrite_contact=yes
+force_rport=yes
+ice_support=no
+media_use_received_transport=yes
+
+[linphone-aor]
+type=aor
+; The user part is replaced per call by PJSIP/<callee>@linphone.
+contact=sip:BOT_USER@sip.linphone.org
+qualify_frequency=60
+
+[linphone-reg]
+type=registration
+transport=transport-udp
+outbound_auth=linphone-auth
+server_uri=sip:sip.linphone.org
+client_uri=sip:BOT_USER@sip.linphone.org
+contact_user=BOT_USER
+retry_interval=60
+forbidden_retry_interval=300
+expiration=300

@@ -30,6 +30,54 @@ const users = {
     return doc;
   },
 
+  /** Replaces the account's reminder settings (already sanitized). */
+  async updateReminders(id, reminders) {
+    return User.findByIdAndUpdate(
+      id,
+      { $set: { reminders } },
+      { new: true, runValidators: true, lean: true }
+    );
+  },
+
+  /** Stores the SIP ownership challenge. The code itself is never persisted. */
+  async setSipVerify(id, sipVerify) {
+    return User.findByIdAndUpdate(
+      id,
+      { $set: { sipVerify } },
+      { new: true, lean: true }
+    );
+  },
+
+  async clearSipVerify(id) {
+    return User.findByIdAndUpdate(
+      id,
+      { $set: { sipVerify: { codeHash: null, expiresAt: null, attempts: 0, lastSentAt: null } } },
+      { new: true, lean: true }
+    );
+  },
+
+  async markSipVerified(id) {
+    return User.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          'reminders.sipVerifiedAt': Date.now(),
+          sipVerify: { codeHash: null, expiresAt: null, attempts: 0, lastSentAt: null },
+        },
+      },
+      { new: true, lean: true }
+    );
+  },
+
+  /** "Press 9" and the profile toggle both land here. */
+  async disableReminders(id) {
+    return User.findByIdAndUpdate(
+      id,
+      { $set: { 'reminders.enabled': false } },
+      { new: true, lean: true }
+    );
+  },
+
   async removeById(id) {
     const result = await User.deleteOne({ _id: id });
     return result.deletedCount > 0;

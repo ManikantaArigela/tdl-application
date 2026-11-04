@@ -1,0 +1,17 @@
+# Replace notes.example.com with your domain. Caddy provisions TLS
+# automatically, which is required for Web Push and the service worker.
+notes.example.com {
+	encode gzip
+
+	# API + WebSocket-free JSON traffic.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:5001
+	}
+
+	# Built frontend (run `npm run build` in frontend/).
+	handle {
+		root * /home/ubuntu/nova-notes/frontend/dist
+		try_files {path} /index.html
+		file_server
+	}
+}
