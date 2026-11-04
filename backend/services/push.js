@@ -5,6 +5,8 @@ const path = require('path');
 const { createPushRepo } = require('../repositories/push.repo');
 
 const VAPID_FILE = process.env.VAPID_FILE || path.join(__dirname, '..', 'var', 'vapid.json');
+// A stale browser subscription must not hold the scheduler or a test call open.
+const PUSH_TIMEOUT_MS = Math.max(1000, Number(process.env.PUSH_TIMEOUT_MS) || 8000);
 
 let cachedKeys = null;
 let webpush = null;
@@ -78,7 +80,8 @@ async function sendToUser(userId, payload) {
       try {
         await client().sendNotification(
           { endpoint: row.endpoint, keys: row.keys },
-          JSON.stringify(payload)
+          JSON.stringify(payload),
+          { timeout: PUSH_TIMEOUT_MS }
         );
         sent += 1;
       } catch (error) {
