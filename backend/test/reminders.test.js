@@ -56,6 +56,18 @@ test('dueInstant accepts a full local datetime and an explicit instant', () => {
   assert.equal(dueInstant({ dueDate: '', timeZone: 'UTC' }), null);
 });
 
+test('dueInstant applies dueTime to a zoned dueDate', () => {
+  // 2026-11-04T06:30Z is 12:00 IST; the user's 22:00 IST must win.
+  assert.equal(
+    dueInstant({
+      dueDate: '2026-11-04T06:30:00.000Z',
+      dueTime: '22:00',
+      timeZone: 'Asia/Kolkata',
+    }),
+    Date.UTC(2026, 10, 4, 16, 30)
+  );
+});
+
 test('quiet hours wrap midnight and use the account timezone', () => {
   const at = (iso) => Date.parse(iso);
 

@@ -40,6 +40,46 @@ function createReminderEventsRepo() {
     }
   };
 
+  /**
+   * Create a queued row, or correct its time if one already exists. The
+   * scheduler is stateless, so a changed timezone or a fixed due-time parser
+   * must be able to move an already-queued row without waiting for a new
+   * `dueKey`. Sent/failed rows are never reopened.
+   */
+  const schedule = async ({
+    userId,
+    todoId,
+    dueKey,
+    stage,
+    channel,
+    scheduledFor,
+    script = '',
+    attempt = 0,
+  }) => {
+    const now = new Date();
+    try {
+      const doc = await ReminderEvent.findOneAndUpdate(
+        { userId, todoId, dueKey, stage, status: 'queued' },
+        {
+          $set: { scheduledFor: new Date(scheduledFor), updatedAt: now },
+          $setOnInsert: {
+            _id: `re_${crypto.randomUUID()}`,
+            channel,
+            attempt,
+            script,
+            createdAt: now,
+          },
+        },
+        { upsert: true, new: true }
+      ).lean();
+      return doc;
+    } catch (error) {
+      // Another tick inserted the row first, or it is no longer queued.
+      if (error?.code === 11000) return null;
+      throw error;
+    }
+  };
+
   /** Atomically moves up to `limit` due rows to `processing`. */
   const claimDue = async (now = new Date(), limit = 25) => {
     const claimed = [];
@@ -85,6 +125,13 @@ function createReminderEventsRepo() {
   const cancelStale = async (userId, todoId, dueKey) =>
     ReminderEvent.updateMany(
       { userId, todoId, dueKey: { $ne: dueKey }, status: 'queued' },
+      { $set: { status: 'skipped', updatedAt: new Date() } }
+    );
+
+  /** Cancel one queued stage that can no longer be delivered on time. */
+  const cancelStage = async (userId, todoId, dueKey, stage) =>
+    ReminderEvent.updateMany(
+      { userId, todoId, dueKey, stage, status: 'queued' },
       { $set: { status: 'skipped', updatedAt: new Date() } }
     );
 
@@ -136,12 +183,14 @@ function createReminderEventsRepo() {
 
   return {
     create,
+    schedule,
     claimDue,
     requeueStale,
     update,
     findById,
     listByUser,
     cancelStale,
+    cancelStage,
     cancelForTodo,
     reopenForTodo,
     countCallsSince,

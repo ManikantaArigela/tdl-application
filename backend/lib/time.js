@@ -96,13 +96,34 @@ function parseDueDateParts(value) {
 function dueInstant({ dueDate, dueTime, timeZone, defaultTime = '09:00' }) {
   const parsed = parseDueDateParts(dueDate);
   if (!parsed) return null;
-  if (parsed.instant !== undefined) return parsed.instant;
+
+  const zone = isValidTimeZone(timeZone) ? timeZone : 'UTC';
+  const fromDueTime = String(dueTime ?? '').match(/^(\d{1,2}):(\d{2})$/);
+  const hasDueTime =
+    fromDueTime &&
+    Number(fromDueTime[1]) <= 23 &&
+    Number(fromDueTime[2]) <= 59;
+
+  // Some todos are created with a full ISO timestamp in dueDate *and* a
+  // separate local dueTime. The explicit dueTime is what the user picked, so
+  // it must win; only use the timestamp's date part.
+  if (parsed.instant !== undefined && !hasDueTime) return parsed.instant;
+
+  let year;
+  let month;
+  let day;
+  if (parsed.instant !== undefined) {
+    const key = localDateKey(parsed.instant, zone);
+    [year, month, day] = key.split('-').map(Number);
+  } else {
+    year = parsed.year;
+    month = parsed.month;
+    day = parsed.day;
+  }
 
   let hour;
   let minute;
-
-  const fromDueTime = String(dueTime ?? '').match(/^(\d{1,2}):(\d{2})$/);
-  if (fromDueTime) {
+  if (hasDueTime) {
     hour = Number(fromDueTime[1]);
     minute = Number(fromDueTime[2]);
   } else if (parsed.hour !== undefined) {
@@ -116,8 +137,7 @@ function dueInstant({ dueDate, dueTime, timeZone, defaultTime = '09:00' }) {
     minute = Number.isFinite(fallbackMinute) ? fallbackMinute : 0;
   }
 
-  const zone = isValidTimeZone(timeZone) ? timeZone : 'UTC';
-  return zonedToUtc({ ...parsed, hour, minute }, zone);
+  return zonedToUtc({ year, month, day, hour, minute }, zone);
 }
 
 /** Local calendar date key (`YYYY-MM-DD`) for an instant. */

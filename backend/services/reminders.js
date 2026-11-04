@@ -121,8 +121,12 @@ async function enqueueForTodo({ user, todo, now = Date.now() }) {
   if (settings.pushEnabled) {
     for (const { stage, offsetMinutes } of PUSH_STAGES) {
       const scheduledFor = due + offsetMinutes * 60_000;
-      if (scheduledFor < now - PUSH_GRACE_MS) continue;
-      const row = await events.create({
+      if (scheduledFor < now - PUSH_GRACE_MS) {
+        // A corrected due time can make an old queued stage obsolete.
+        await events.cancelStage(user._id, todo._id, dueKey, stage).catch(() => {});
+        continue;
+      }
+      const row = await events.schedule({
         userId: user._id,
         todoId: todo._id,
         dueKey,
@@ -136,7 +140,7 @@ async function enqueueForTodo({ user, todo, now = Date.now() }) {
 
   if (settings.enabled && settings.sipUri && settings.sipVerified && settings.consentAt) {
     if (due >= now - CALL_GRACE_MS) {
-      const row = await events.create({
+      const row = await events.schedule({
         userId: user._id,
         todoId: todo._id,
         dueKey,
@@ -145,6 +149,9 @@ async function enqueueForTodo({ user, todo, now = Date.now() }) {
         scheduledFor: due,
       });
       if (row) created += 1;
+    } else {
+      // Do not let a pre-fix row ring at the wrong (later) time.
+      await events.cancelStage(user._id, todo._id, dueKey, 'call').catch(() => {});
     }
   }
 
