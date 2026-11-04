@@ -74,6 +74,16 @@ export const api = {
   confirmSipVerification: (code) =>
     request('/reminders/sip/verify/confirm', { method: 'POST', body: JSON.stringify({ code }) }),
   sendTestCall: () => request('/reminders/test-call', { method: 'POST' }),
+  getCall: (eventId) => request(`/reminders/calls/${encodeURIComponent(eventId)}`),
+  answerCall: (eventId) =>
+    request(`/reminders/calls/${encodeURIComponent(eventId)}/answer`, { method: 'POST' }),
+  declineCall: (eventId) =>
+    request(`/reminders/calls/${encodeURIComponent(eventId)}/decline`, { method: 'POST' }),
+  actionCall: (eventId, action) =>
+    request(`/reminders/calls/${encodeURIComponent(eventId)}/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
   getReminderEvents: () => request('/reminders/events'),
   getVoiceStatus: () => request('/voice/status'),
   getPushKey: () => request('/push/key'),

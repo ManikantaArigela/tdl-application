@@ -96,14 +96,22 @@ function createReminderEventsRepo() {
   };
 
   /**
-   * A process that dies after claiming a row leaves it in `processing`. Put
-   * those rows back after a grace period so reminders are not silently lost.
+   * A process that dies after claiming a row leaves it in `processing`, and a
+   * process that dies mid-call leaves it in `dialing`. Put both back after a
+   * grace period so reminders are not silently lost.
    */
-  const requeueStale = async (olderThanMs = 10 * 60 * 1000) =>
-    ReminderEvent.updateMany(
-      { status: 'processing', startedAt: { $lt: new Date(Date.now() - olderThanMs) } },
+  const requeueStale = async (olderThanMs = 10 * 60 * 1000) => {
+    const cutoff = new Date(Date.now() - olderThanMs);
+    return ReminderEvent.updateMany(
+      {
+        $or: [
+          { status: 'processing', startedAt: { $lt: cutoff } },
+          { status: 'dialing', updatedAt: { $lt: cutoff } },
+        ],
+      },
       { $set: { status: 'queued', startedAt: null, updatedAt: new Date() } }
     );
+  };
 
   const update = async (id, patch = {}) =>
     ReminderEvent.findByIdAndUpdate(

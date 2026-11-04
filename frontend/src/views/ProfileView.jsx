@@ -79,6 +79,7 @@ export default function ProfileView() {
   const reminderError = useStore((s) => s.reminderError);
   const voiceStatus = useStore((s) => s.voiceStatus);
   const pushSubscribed = useStore((s) => s.pushSubscribed);
+  const inApp = voiceStatus?.provider === 'inapp';
   const saveReminderSettings = useStore((s) => s.saveReminderSettings);
   const startSipVerification = useStore((s) => s.startSipVerification);
   const confirmSipVerification = useStore((s) => s.confirmSipVerification);
@@ -217,8 +218,12 @@ export default function ProfileView() {
       setVoiceNotice('Tick the consent box before enabling calls.');
       return;
     }
-    if (checked && !sip.trim()) {
+    if (checked && !inApp && !sip.trim()) {
       setVoiceNotice('Add your free Linphone SIP address first.');
+      return;
+    }
+    if (checked && inApp && !pushSubscribed) {
+      setVoiceNotice('Enable background notifications first so the app can ring.');
       return;
     }
     await saveVoice({ enabled: checked });
@@ -262,13 +267,20 @@ export default function ProfileView() {
     setVoiceNotice('');
     const result = await sendTestCall();
     setCallState(result.error ? 'idle' : 'sent');
-    setVoiceNotice(
-      result.error
-        ? result.error.message
-        : result.simulated
-          ? 'Test call simulated (dry-run mode).'
-          : 'Test call placed. Answer your Linphone app.'
-    );
+    if (result.error) {
+      setVoiceNotice(result.error.message);
+    } else if (inApp) {
+      setVoiceNotice('Test call ready. Answer it in the Nova call window.');
+      if (result.eventId) {
+        window.dispatchEvent(
+          new CustomEvent('nova:incoming-call', { detail: { eventId: result.eventId } })
+        );
+      }
+    } else {
+      setVoiceNotice(
+        result.simulated ? 'Test call simulated (dry-run mode).' : 'Test call placed. Answer your Linphone app.'
+      );
+    }
     if (!result.error) setTimeout(() => setCallState('idle'), 3000);
   };
 
@@ -593,44 +605,61 @@ export default function ProfileView() {
       <Section
         icon={PhoneCall}
         title="Voice call reminders"
-        description="A free SIP call when a task is due. No phone bill and no Twilio account."
+        description={
+          inApp
+            ? 'A free in-app call when a task is due. No SIP account, phone bill, or Twilio account.'
+            : 'A free SIP call when a task is due. No phone bill and no Twilio account.'
+        }
       >
+        {inApp && (
+          <p className="py-3 text-xs leading-relaxed text-muted">
+            The server sends a high-priority notification, then Nova Notes speaks the reminder with
+            your device&apos;s free text-to-speech. Enable background notifications below so the app
+            can ring while it is closed.
+          </p>
+        )}
         <Toggle
           label="Call me when a task is due"
-          description="Answer and press 1 to complete, 2 to snooze 15 minutes, 9 to stop all calls."
+          description={
+            inApp
+              ? 'Answer in Nova Notes, then complete, snooze, or stop calls.'
+              : 'Answer and press 1 to complete, 2 to snooze 15 minutes, 9 to stop all calls.'
+          }
           checked={reminderSettings.enabled}
           disabled={reminderBusy}
           onChange={toggleVoice}
         />
 
         <div className="grid gap-3 py-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label htmlFor="voice-sip" className="mb-1.5 block text-xs font-semibold text-muted">
-              Linphone SIP address
-            </label>
-            <input
-              id="voice-sip"
-              type="text"
-              className="input h-9 w-full"
-              placeholder="name@sip.linphone.org"
-              value={sip}
-              onChange={(event) => setSip(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="mt-1 text-[11px] text-faint">
-              Create a free account at{' '}
-              <a
-                className="text-accent hover:underline"
-                href="https://subscribe.linphone.org/register/email"
-                target="_blank"
-                rel="noreferrer"
-              >
-                sip.linphone.org
-              </a>{' '}
-              and install Linphone on your phone. Allow it to run in the background.
-            </p>
-          </div>
+          {!inApp && (
+            <div className="sm:col-span-2">
+              <label htmlFor="voice-sip" className="mb-1.5 block text-xs font-semibold text-muted">
+                Linphone SIP address
+              </label>
+              <input
+                id="voice-sip"
+                type="text"
+                className="input h-9 w-full"
+                placeholder="name@sip.linphone.org"
+                value={sip}
+                onChange={(event) => setSip(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="mt-1 text-[11px] text-faint">
+                Create a free account at{' '}
+                <a
+                  className="text-accent hover:underline"
+                  href="https://subscribe.linphone.org/register/email"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  sip.linphone.org
+                </a>{' '}
+                and install Linphone on your phone. Allow it to run in the background.
+              </p>
+            </div>
+          )}
 
           <div>
             <label
@@ -684,8 +713,9 @@ export default function ProfileView() {
             onChange={(event) => setConsent(event.target.checked)}
           />
           <span>
-            I agree to receive automated reminder calls at this SIP address. I can press 9 or turn
-            this off at any time.
+            {inApp
+              ? 'I agree to receive automated reminder calls inside Nova Notes. I can stop them at any time.'
+              : 'I agree to receive automated reminder calls at this SIP address. I can press 9 or turn this off at any time.'}
           </span>
         </label>
 
@@ -705,22 +735,23 @@ export default function ProfileView() {
             )}
           </button>
 
-          {reminderSettings.sipVerified ? (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-success">
-              <Check className="h-3.5 w-3.5" aria-hidden="true" /> Verified
-            </span>
-          ) : (
-            <button
-              type="button"
-              className="btn-ghost px-3.5 py-2 text-xs"
-              onClick={requestSipCode}
-              disabled={reminderBusy || !sip.trim()}
-            >
-              Send verification call
-            </button>
-          )}
+          {!inApp &&
+            (reminderSettings.sipVerified ? (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-success">
+                <Check className="h-3.5 w-3.5" aria-hidden="true" /> Verified
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="btn-ghost px-3.5 py-2 text-xs"
+                onClick={requestSipCode}
+                disabled={reminderBusy || !sip.trim()}
+              >
+                Send verification call
+              </button>
+            ))}
 
-          {reminderSettings.sipVerified && (
+          {(inApp || reminderSettings.sipVerified) && (
             <button
               type="button"
               className="btn-ghost px-3.5 py-2 text-xs"
@@ -738,7 +769,7 @@ export default function ProfileView() {
           )}
         </div>
 
-        {!reminderSettings.sipVerified && (
+        {!inApp && !reminderSettings.sipVerified && (
           <div className="flex flex-wrap items-end gap-2 py-3">
             <div className="min-w-[8rem] flex-1">
               <label htmlFor="voice-code" className="mb-1.5 block text-xs font-semibold text-muted">

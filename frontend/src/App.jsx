@@ -18,6 +18,7 @@ import QuickCapture from './components/QuickCapture';
 import InsightsPanel from './components/InsightsPanel';
 import ExportDialog from './components/ExportDialog';
 import ReminderCenter from './components/ReminderCenter';
+import CallOverlay from './components/CallOverlay';
 import ToastCenter from './components/ToastCenter';
 import AIPlannerDialog from './components/AIPlannerDialog';
 import AISummaryDialog from './components/AISummaryDialog';
@@ -327,6 +328,7 @@ export default function App() {
         </AnimatePresence>
 
         <ReminderCenter />
+        <CallOverlay />
         <ToastCenter />
         </div>
       </MotionConfig>

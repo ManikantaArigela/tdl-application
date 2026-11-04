@@ -4,6 +4,11 @@ This setup calls the user's **Linphone** app over free SIP when a task is due.
 There is no Twilio, no PSTN number, and no per-minute cost. The only account
 cost is the Oracle Cloud Always Free VM.
 
+> **You do not need this guide for the default free path.** With
+> `VOICE_PROVIDER=inapp`, Nova Notes sends a Web Push and speaks the reminder in
+> the app using the device's text-to-speech. Use this Asterisk/Linphone setup
+> only if you want a real SIP call that rings a separate Linphone app.
+
 ```
 task due ──> Nova scheduler ──> Asterisk ARI ──> sip.linphone.org ──> Linphone app
                     │

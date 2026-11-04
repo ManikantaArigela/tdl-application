@@ -349,6 +349,42 @@ function createApp({
   );
 
   app.get(
+    '/api/reminders/calls/:eventId',
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      const call = await reminders.getCall(user, req.params.eventId);
+      if (!call) return res.status(404).json({ error: 'This call has ended or does not exist.' });
+      return res.json({ call });
+    })
+  );
+
+  app.post(
+    '/api/reminders/calls/:eventId/answer',
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      return res.json({ call: await reminders.answerCall(user, req.params.eventId) });
+    })
+  );
+
+  app.post(
+    '/api/reminders/calls/:eventId/decline',
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      return res.json({ call: await reminders.declineCall(user, req.params.eventId) });
+    })
+  );
+
+  app.post(
+    '/api/reminders/calls/:eventId/action',
+    wrap(async (req, res) => {
+      const user = await currentUser(req);
+      return res.json(
+        await reminders.actionCall(user, req.params.eventId, req.body?.action)
+      );
+    })
+  );
+
+  app.get(
     '/api/reminders/events',
     wrap(async (req, res) => {
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));

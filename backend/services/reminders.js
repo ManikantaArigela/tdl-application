@@ -73,23 +73,34 @@ function formatDueForSpeech(todo, timezone, language) {
   }
 }
 
-function buildPrompt({ user, todo, language = 'en' }) {
+function buildPrompt({ user, todo, language = 'en', channel = 'call' }) {
   const name = String(user?.name || '').trim().split(/\s+/)[0] || 'there';
-  const text = String(todo?.text || 'Your task').trim().slice(0, 160);
+  const text = String(todo?.text || 'Your task').trim().replace(/[.!?।]+$/, '').slice(0, 160);
   const when = formatDueForSpeech(todo, timezoneOf(user), language);
+  const inApp = channel === 'inapp';
+
+  const englishActions = inApp
+    ? ' Choose Complete, Snooze for 15 minutes, or Stop calls in the app.'
+    : ' Press 1 to mark it complete. Press 2 to snooze for 15 minutes. Press 9 to stop all voice reminders.';
+  const hindiActions = inApp
+    ? ' ऐप में पूरा करें, पंद्रह मिनट टालें, या सभी कॉल बंद करें चुनें।'
+    : ' पूरा करने के लिए 1 दबाएँ। पंद्रह मिनट टालने के लिए 2 दबाएँ। सभी कॉल बंद करने के लिए 9 दबाएँ।';
+  const teluguActions = inApp
+    ? ' యాప్‌లో పూర్తి చేయండి, పదిహేను నిమిషాలు వాయిదా వేయండి, లేదా అన్ని కాల్స్ ఆపండి ఎంచుకోండి.'
+    : ' పూర్తి చేయడానికి 1 నొక్కండి. పదిహేను నిమిషాలు వాయిదా వేయడానికి 2 నొక్కండి. అన్ని కాల్స్ ఆపడానికి 9 నొక్కండి.';
 
   const english =
     `Hello ${name}. This is Nova. Reminder: ${text}.` +
     (when ? ` It is due ${when}.` : '') +
-    ' Press 1 to mark it complete. Press 2 to snooze for 15 minutes. Press 9 to stop all voice reminders.';
+    englishActions;
 
   const hindi =
     `नमस्ते ${name}। यह Nova है। याद दिलाना: ${text}।` +
-    ' पूरा करने के लिए 1 दबाएँ। पंद्रह मिनट टालने के लिए 2 दबाएँ। सभी कॉल बंद करने के लिए 9 दबाएँ।';
+    hindiActions;
 
   const telugu =
     `నమస్కారం ${name}. ఇది Nova. గుర్తు చేయడం: ${text}.` +
-    ' పూర్తి చేయడానికి 1 నొక్కండి. పదిహేను నిమిషాలు వాయిదా వేయడానికి 2 నొక్కండి. అన్ని కాల్స్ ఆపడానికి 9 నొక్కండి.';
+    teluguActions;
 
   if (language === 'hi') return hindi;
   if (language === 'te') return telugu;
@@ -138,7 +149,14 @@ async function enqueueForTodo({ user, todo, now = Date.now() }) {
     }
   }
 
-  if (settings.enabled && settings.sipUri && settings.sipVerified && settings.consentAt) {
+  const voiceReady =
+    settings.enabled &&
+    settings.consentAt &&
+    (voice.requiresSip()
+      ? Boolean(settings.sipUri && settings.sipVerified)
+      : Boolean(settings.pushEnabled));
+
+  if (voiceReady) {
     if (due >= now - CALL_GRACE_MS) {
       const row = await events.schedule({
         userId: user._id,
@@ -327,8 +345,20 @@ async function processEvent(event, now = Date.now()) {
   }
 
   // ---- Voice call ----
-  if (!settings.enabled || !settings.sipUri || !settings.sipVerified || !settings.consentAt) {
-    await events.update(event._id, { status: 'skipped', error: 'Voice reminders are not verified' });
+  const voiceReady =
+    settings.enabled &&
+    settings.consentAt &&
+    (voice.requiresSip()
+      ? Boolean(settings.sipUri && settings.sipVerified)
+      : Boolean(settings.pushEnabled));
+
+  if (!voiceReady) {
+    await events.update(event._id, {
+      status: 'skipped',
+      error: voice.requiresSip()
+        ? 'Voice reminders are not verified'
+        : 'In-app calls need background notifications',
+    });
     return;
   }
 
@@ -346,11 +376,27 @@ async function processEvent(event, now = Date.now()) {
     return;
   }
 
-  const script = buildPrompt({ user, todo, language: settings.voiceLanguage });
+  const script = buildPrompt({
+    user,
+    todo,
+    language: settings.voiceLanguage,
+    channel: voice.isInApp() ? 'inapp' : 'call',
+  });
 
   try {
+    // Mark the row dialing before the transport sends its push/call. A very
+    // fast answer must not be overwritten by the post-originate update below.
+    await events.update(event._id, {
+      status: 'dialing',
+      provider: voice.providerName(),
+      script,
+    });
+
     const call = await voice.placeCall({
       to: settings.sipUri,
+      userId: user._id,
+      todoId: event.todoId,
+      todoText: todo.text,
       script,
       language: settings.voiceLanguage,
       eventId: event._id,
@@ -359,7 +405,6 @@ async function processEvent(event, now = Date.now()) {
     });
 
     await events.update(event._id, {
-      status: 'dialing',
       provider: call.provider,
       providerCallId: call.id,
       script,
@@ -456,11 +501,14 @@ async function updateSettings(user, input = {}, repo = users) {
   if (next.enabled && !next.consentAt) {
     throw httpError('Consent is required before enabling voice reminders.', 400);
   }
-  if (next.enabled && !next.sipUri) {
+  if (next.enabled && voice.requiresSip() && !next.sipUri) {
     throw httpError('Add a SIP address before enabling voice reminders.', 400);
   }
-  if (next.enabled && !isValidSipUri(next.sipUri)) {
+  if (next.enabled && voice.requiresSip() && !isValidSipUri(next.sipUri)) {
     throw httpError('Enter a valid SIP address, for example name@sip.linphone.org.', 400);
+  }
+  if (next.enabled && !voice.requiresSip() && !next.pushEnabled) {
+    throw httpError('Enable background notifications before enabling in-app calls.', 400);
   }
 
   const sipChanged = String(next.sipUri || '') !== String(base.sipUri || '');
@@ -563,20 +611,115 @@ async function sendTestCall(user) {
   if (!settings.consentAt) {
     throw httpError('Tick the consent box before placing a test call.', 400);
   }
-  if (!settings.sipUri || !settings.sipVerified) {
+  if (voice.requiresSip() && (!settings.sipUri || !settings.sipVerified)) {
     throw httpError('Verify a SIP address before testing.', 400);
+  }
+  if (!voice.requiresSip() && !settings.pushEnabled) {
+    throw httpError('Enable background notifications before testing in-app calls.', 400);
   }
 
   const call = await voice.placeCall({
     to: settings.sipUri,
-    script:
-      'Hello. This is Nova. Your voice reminders are working. Press 1 to mark a task complete, 2 to snooze, or 9 to stop all calls.',
+    userId: user._id,
+    script: voice.isInApp()
+      ? 'Hello. This is Nova. Your voice reminders are working. Choose Complete, Snooze for 15 minutes, or Stop calls in the app.'
+      : 'Hello. This is Nova. Your voice reminders are working. Press 1 to mark a task complete, 2 to snooze, or 9 to stop all calls.',
     language: settings.voiceLanguage,
     eventId: `test_${user._id}_${Date.now()}`,
     kind: 'test',
+    todoText: 'Nova test call',
   });
 
-  return { sent: true, provider: call.provider, simulated: Boolean(call.simulated) };
+  if (call.delivered === false) {
+    throw httpError('Enable background notifications in this browser before testing.', 400);
+  }
+
+  return {
+    sent: true,
+    provider: call.provider,
+    simulated: Boolean(call.simulated),
+    eventId: call.id,
+  };
+}
+
+/** Load one call session for the in-app answer screen. */
+async function getCall(user, eventId) {
+  const id = String(eventId || '');
+  if (!id) throw httpError('A call id is required.', 400);
+
+  const event = await events.findById(id);
+  if (event && String(event.userId) === String(user._id)) {
+    if (['completed', 'snoozed', 'opted_out', 'skipped', 'failed', 'no_answer'].includes(event.status)) {
+      return null;
+    }
+    const settings = settingsOf(user);
+    const todo = await scheduler.findTodo(user._id, event.todoId);
+    return {
+      eventId: event._id,
+      todoId: event.todoId,
+      todoText: todo?.text || 'Task reminder',
+      script:
+        event.script ||
+        buildPrompt({
+          user,
+          todo: todo || { text: 'Task reminder' },
+          language: settings.voiceLanguage,
+          channel: voice.isInApp() ? 'inapp' : 'call',
+        }),
+      language: settings.voiceLanguage,
+      status: event.status,
+      mode: voice.providerName(),
+    };
+  }
+
+  // Test calls have no reminder row; their short-lived session holds the prompt.
+  const session = voice.getSession(id);
+  if (session && String(session.userId) === String(user._id)) {
+    return {
+      eventId: session.eventId,
+      todoId: session.todoId,
+      todoText: session.todoText || 'Nova test call',
+      script: session.script,
+      language: session.language,
+      status: 'dialing',
+      mode: voice.providerName(),
+    };
+  }
+
+  return null;
+}
+
+async function answerCall(user, eventId) {
+  const call = await getCall(user, eventId);
+  if (!call) throw httpError('This call has ended or does not exist.', 410);
+  const answered = voice.answer(eventId);
+  return { ...call, answered: Boolean(answered) };
+}
+
+async function declineCall(user, eventId) {
+  const call = await getCall(user, eventId);
+  if (!call) throw httpError('This call has ended or does not exist.', 410);
+  const declined = voice.decline(eventId);
+  return { ...call, declined: Boolean(declined) };
+}
+
+async function actionCall(user, eventId, action) {
+  const digits = { complete: '1', snooze: '2', opt_out: '9' };
+  const digit = digits[action];
+  if (!digit) throw httpError('Unknown call action.', 400);
+
+  const id = String(eventId || '');
+  const event = await events.findById(id);
+  if (!event || String(event.userId) !== String(user._id)) {
+    // Test calls have no task to update, but the overlay still needs a clean
+    // acknowledgement so it can close instead of showing a false error.
+    if (id.startsWith('test_')) return { status: 'test' };
+    throw httpError('This call has ended or does not exist.', 404);
+  }
+
+  voice.action(id, action);
+  const status = await handleDtmf(event, digit);
+  return { status };
 }
 
 async function listEvents(userId, limit = 25) {
@@ -608,6 +751,10 @@ module.exports = {
   startVerification,
   confirmVerification,
   sendTestCall,
+  getCall,
+  answerCall,
+  declineCall,
+  actionCall,
   listEvents,
   status,
   handleDtmf,

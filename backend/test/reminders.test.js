@@ -149,6 +149,10 @@ test('prompts are built in each supported voice language', () => {
   const bilingual = buildPrompt({ user, todo, language: 'en-hi' });
   assert.match(bilingual, /Hello Ada/);
   assert.match(bilingual, /नमस्ते Ada/);
+
+  const inApp = buildPrompt({ user, todo, language: 'en', channel: 'inapp' });
+  assert.match(inApp, /Choose Complete/);
+  assert.doesNotMatch(inApp, /Press 1/);
 });
 
 test('recurring tasks roll forward by calendar day', () => {
