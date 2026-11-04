@@ -180,7 +180,9 @@ function createReminderEventsRepo() {
     ReminderEvent.countDocuments({
       userId,
       channel: 'call',
-      createdAt: { $gte: new Date(since) },
+      // Count calls actually attempted today, not future call rows that were
+      // created today by a reschedule. `startedAt` is set when a row is claimed.
+      startedAt: { $gte: new Date(since) },
       status: { $nin: ['skipped'] },
     });
 
